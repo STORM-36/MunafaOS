@@ -141,11 +141,19 @@ const SmartForm = () => {
         );
         const snapshot = await getDocs(inventoryQuery);
         const options = snapshot.docs
-          .map((inventoryDoc) => ({
-            id: inventoryDoc.id,
-            ...inventoryDoc.data()
-          }))
-          .filter((item) => item?.name)
+          .map((inventoryDoc) => {
+            const data = inventoryDoc.data() || {};
+            const docId = String(inventoryDoc.id || '').trim();
+            const productName = String(data.name || data.productName || '').trim();
+
+            return {
+              ...data,
+              id: docId,
+              inventoryId: docId,
+              name: productName
+            };
+          })
+          .filter((item) => item.inventoryId && item.name)
           .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
         setInventoryOptions(options);
@@ -173,6 +181,17 @@ const SmartForm = () => {
 
   // �💾 SAVE ORDER
   const handleSave = async () => {
+    const selectedInventoryId = String(manualData.inventoryId || '').trim();
+    const hasValidInventorySelection = inventoryOptions.some(
+      (item) =>
+        String(item.inventoryId || item.id || '').trim() === selectedInventoryId
+    );
+
+    if (!selectedInventoryId || !hasValidInventorySelection) {
+      alert('Please select a valid product from the inventory before saving.');
+      return;
+    }
+
     const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
 
     if (!currentUser || !effectiveWorkspaceId) {
@@ -187,6 +206,10 @@ const SmartForm = () => {
     const safeCategory = normalizeCategory(manualData.category);
     const addedByFallback = currentUser?.displayName || currentUser?.email || '';
     const safeAddedBy = sanitizeInput(manualData.addedBy || addedByFallback || '');
+    const inventoryId = sanitizeInput(selectedInventoryId);
+    const selectedProductName = sanitizeInput(
+      manualData.productName || manualData.subcategory || manualData.category || 'Unknown Product'
+    );
 
     if (!selling || selling <= 0) {
       alert("⚠️ Stop! You must enter a Selling Price.");
@@ -213,7 +236,7 @@ const SmartForm = () => {
         discountPrice: sanitizeNumber(discount || 0),
         category: sanitizeInput(safeCategory),
         productName: sanitizeInput(manualData.productName),
-        inventoryId: sanitizeInput(manualData.inventoryId),
+        inventoryId,
         subcategory: sanitizeInput(manualData.subcategory),
         sku: sanitizeInput(manualData.sku),
         addedBy: safeAddedBy,
@@ -222,39 +245,40 @@ const SmartForm = () => {
         timestamp: serverTimestamp()
       });
 
+      // Audit trigger: log staff order creation immediately after successful save.
+      if (currentUser) {
+        try {
+          const auditWorkspaceId = currentUser.workspaceId || effectiveWorkspaceId;
+          await logAudit(
+            auditWorkspaceId,
+            currentUser,
+            'CREATED_ORDER',
+            `Created order ${createdOrder.id} for ${manualData.name}`
+          );
+        } catch (err) {
+          console.error('Order audit logging failed:', err);
+        }
+      }
+
       // Auto-deduct inventory right after order save using exact inventory doc id.
       // SmartForm has no explicit quantity state, so each saved order deducts 1 unit.
       try {
         const orderQuantity = 1;
-        const selectedInventoryId = sanitizeInput(manualData.inventoryId || '');
 
-        if (selectedInventoryId) {
-          const invRef = doc(db, 'inventory', selectedInventoryId);
+        if (inventoryId) {
+          const invRef = doc(db, 'inventory', inventoryId);
           await updateDoc(invRef, {
             quantity: increment(-orderQuantity)
           });
-          console.log('Successfully deducted stock for inventoryId:', selectedInventoryId);
+          console.log('Successfully deducted stock for inventoryId:', inventoryId);
         } else {
           console.error('Inventory deduction skipped: inventoryId missing for order', {
             orderId: createdOrder.id,
-            selectedInventoryId
+            inventoryId
           });
         }
       } catch (inventoryError) {
         console.error('Inventory auto-deduction failed:', inventoryError);
-      }
-
-      if (currentUser) {
-        try {
-          await logAudit(
-            currentUser.workspaceId,
-            currentUser,
-            'CREATED_ORDER',
-            `Created order ${createdOrder.id} for ${sanitizeInput(manualData.name || 'Unknown customer')}`
-          );
-        } catch (err) {
-          console.error(err);
-        }
       }
 
       // Reset Form
@@ -360,21 +384,35 @@ const SmartForm = () => {
               value={manualData.inventoryId}
               onChange={(e) => {
                 const selectedId = e.target.value;
-                const selectedProduct = inventoryOptions.find((item) => item.id === selectedId);
+                const foundProduct = inventoryOptions.find(
+                  (product) => product.id === selectedId
+                );
+
+                if (!foundProduct) {
+                  setManualData((previousData) => ({
+                    ...previousData,
+                    inventoryId: '',
+                    productName: '',
+                    sku: previousData.sku
+                  }));
+                  return;
+                }
 
                 setManualData((previousData) => ({
                   ...previousData,
-                  inventoryId: selectedId,
-                  productName: selectedProduct?.name || '',
-                  sku: selectedProduct?.sku || previousData.sku
+                  inventoryId: foundProduct.id,
+                  productName: foundProduct.name || previousData.productName,
+                  sku: foundProduct.sku || previousData.sku,
+                  subcategory: foundProduct.subcategory || previousData.subcategory,
+                  category: foundProduct.category || previousData.category
                 }));
               }}
               className="w-full p-2 border rounded font-bold text-gray-700"
             >
               <option value="">Select from inventory</option>
-              {inventoryOptions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
+              {inventoryOptions.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
                 </option>
               ))}
             </select>

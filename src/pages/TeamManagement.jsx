@@ -180,9 +180,12 @@ const TeamManagement = () => {
     setIsLoadingLogs(true);
 
     try {
+      const employeeAuthUid = employee?.uid || employee?.id;
+
       const logsQuery = query(
         collection(db, 'audit_logs'),
-        where('userId', '==', employee.uid || employee.id),
+        where('workspaceId', '==', currentUser.workspaceId),
+        where('userId', '==', employeeAuthUid),
         orderBy('timestamp', 'desc'),
         limit(50)
       );
@@ -195,7 +198,7 @@ const TeamManagement = () => {
 
       setAuditLogs(rows);
     } catch (error) {
-      console.error('Failed to fetch audit logs:', error);
+      console.error('CRITICAL: Audit Fetch Failed:', error);
       setAuditLogs([]);
     } finally {
       setIsLoadingLogs(false);

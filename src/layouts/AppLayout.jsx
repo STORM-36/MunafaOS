@@ -103,30 +103,26 @@ const AppLayout = () => {
                 <span>Orders</span>
                 <span className="text-xs font-bold bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">{orderCount}</span>
               </NavLink>
-              <NavLink to="/inventory" onClick={closeMobileMenu} className={navItemClass}>
-                <span>Inventory</span>
+              <NavLink to="/inventory-list" onClick={closeMobileMenu} className={navItemClass}>
+                <span>Inventory List</span>
                 <span className="text-xs font-bold bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">{inventoryCount}</span>
               </NavLink>
             </nav>
 
             <p className="text-xs text-slate-400 font-bold tracking-wider mt-6 mb-2">AI TOOLS</p>
             <nav className="space-y-1">
-              <Link
-                to="#"
-                onClick={closeMobileMenu}
-                className={`${sidebarLinkBase} px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 rounded-lg`}
-              >
+              <NavLink to="/add-inventory" onClick={closeMobileMenu} className={navItemClass}>
+                <span>Add Inventory</span>
+                <span className="text-xs font-bold bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">AI</span>
+              </NavLink>
+              <NavLink to="/bulk-import" onClick={closeMobileMenu} className={navItemClass}>
                 <span>Bulk Import</span>
                 <span className="text-xs font-bold bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">AI</span>
-              </Link>
-              <Link
-                to="#"
-                onClick={closeMobileMenu}
-                className={`${sidebarLinkBase} px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 rounded-lg`}
-              >
+              </NavLink>
+              <NavLink to="/ocr-scanner" onClick={closeMobileMenu} className={navItemClass}>
                 <span>OCR Scanner</span>
                 <span className="text-xs font-bold bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">AI</span>
-              </Link>
+              </NavLink>
             </nav>
 
             <p className="text-xs text-slate-400 font-bold tracking-wider mt-6 mb-2">INSIGHTS</p>

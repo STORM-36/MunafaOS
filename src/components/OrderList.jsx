@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { db, auth } from '../firebase'; 
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import Dashboard from '../pages/Dashboard'; // 👈 NEW: Import the Charts!
 import Receipt from './Receipt'; // 👈 Import Receipt
 import { useAuth } from '../context/AuthContext';
 import { logAudit } from '../utils/auditLogger';
@@ -159,11 +158,6 @@ const OrderList = () => {
 
   return (
     <div className="mt-10 w-full relative">
-      
-      {/* 👇 NEW: THIS DISPLAYS THE DASHBOARD CHARTS */}
-      {!loading && orders.length > 0 && (
-         <Dashboard orders={orders} />
-      )}
 
       <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
           

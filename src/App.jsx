@@ -3,9 +3,12 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import AuthForm from './components/AuthForm';
 import Unauthorized from './components/Unauthorized';
 import Dashboard from './pages/Dashboard';
-import InventoryPage from './pages/InventoryPage';
+import AddInventory from './pages/AddInventory';
+import InventoryListPage from './pages/InventoryListPage';
 import OrdersPage from './pages/OrdersPage';
 import TeamManagement from './pages/TeamManagement';
+import OCRScanner from './pages/OCRScanner';
+import BulkImport from './pages/BulkImport';
 import AppLayout from './layouts/AppLayout';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -41,15 +44,20 @@ function App() {
       <Route path="/unauthorized" element={<Unauthorized />} />
 
       <Route
+        path="/"
         element={
           <ProtectedRoute allowedRoles={['owner', 'operator']}>
             <AppLayout />
           </ProtectedRoute>
         }
       >
+        <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/orders" element={<OrdersPage />} />
-        <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/inventory-list" element={<InventoryListPage />} />
+        <Route path="/add-inventory" element={<AddInventory />} />
+        <Route path="/ocr-scanner" element={<OCRScanner />} />
+        <Route path="/bulk-import" element={<BulkImport />} />
         <Route
           path="/team"
           element={
