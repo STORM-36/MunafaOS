@@ -85,18 +85,42 @@ const OrderList = () => {
 
   // 4. 💰 PROFIT CALCULATION ENGINE
   const getStableProfit = (order) => {
-    const selling = parseFloat(order.sellingPrice) || 0;
-    const discount = parseFloat(order.discountPrice) || 0;
-    const effectiveSelling = discount > 0 ? discount : selling;
-    const cost = parseFloat(order.productCost) || 0;
-    const delivery = parseFloat(order.deliveryCost) || 0;
-    const ads = parseFloat(order.adCost) || 0;
-    const packaging = 15;
+    const qty = Number(order.qty || order.quantity || 1);
+    const grossRevenue = Number(order.grossRevenue ?? order.totalRevenue ?? order.sellingPrice ?? 0);
+    const totalProductCost = Number(order.totalProductCost ?? order.productCost ?? 0);
+    const totalPackaging = Number(order.totalPackaging ?? (Number(order.unitPackaging || 0) * qty));
+    const totalAdSpend = Number(order.totalAdSpend ?? (Number(order.adCost || 0) * qty));
+    const totalDelivery = Number(order.totalDelivery ?? order.deliveryCost ?? 0);
+    const totalDiscount = Number(order.totalDiscount ?? (Number(order.unitDiscount ?? order.discountPrice ?? 0) * qty));
+    const totalDeductions = Number(order.totalDeductions ?? (totalProductCost + totalPackaging + totalAdSpend + totalDelivery));
+    const trueProfit = Number(order.trueNetProfit ?? order.finalProfit ?? order.netProfit ?? (grossRevenue - totalDeductions));
 
-    const totalSpent = cost + delivery + ads + packaging;
-    const trueProfit = effectiveSelling - totalSpent;
-    
-    return { trueProfit, totalSpent, ads };
+    const unitCost = Number(order.unitCost ?? (qty > 0 ? totalProductCost / qty : 0));
+    const unitSellingPrice = Number(order.unitSellingPrice ?? (qty > 0 ? (grossRevenue + totalDiscount) / qty : 0));
+    const unitDiscount = Number(order.unitDiscount ?? order.discountPrice ?? (qty > 0 ? totalDiscount / qty : 0));
+    const unitPackaging = Number(order.unitPackaging ?? (qty > 0 ? totalPackaging / qty : 0));
+
+    return {
+      qty,
+      grossRevenue,
+      totalDiscount,
+      totalProductCost,
+      totalPackaging,
+      totalAdSpend,
+      totalDelivery,
+      totalDeductions,
+      trueProfit,
+      unitCost,
+      unitSellingPrice,
+      unitDiscount,
+      unitPackaging
+    };
+  };
+
+  const formatSignedCurrency = (value) => {
+    const num = Number(value || 0);
+    const sign = num < 0 ? '-' : '';
+    return `${sign}Tk${Math.abs(num).toFixed(0)}`;
   };
 
   // 5. 📄 SECURE EXPORT TO EXCEL
@@ -111,25 +135,34 @@ const OrderList = () => {
     if (!isConfirmed) return;
 
     const excelData = orders.map(order => {
-      const { trueProfit } = getStableProfit(order);
-      const selling = parseFloat(order.sellingPrice) || 0;
-      const discount = parseFloat(order.discountPrice) || 0;
-      const effectiveSelling = discount > 0 ? discount : selling;
+      const {
+        qty,
+        trueProfit,
+        grossRevenue,
+        totalDiscount,
+        totalProductCost,
+        totalPackaging,
+        totalAdSpend,
+        totalDelivery,
+        totalDeductions
+      } = getStableProfit(order);
       return {
         Date: order.timestamp?.toDate().toLocaleDateString('en-GB') || "N/A",
         Customer: order.name,
+        Qty: qty,
         Phone: order.phone,
         Address: order.address,
         Category: order.category || "",
         Subcategory: order.subcategory || "",
         SKU: order.sku || "",
         Status: order.status || "Pending",
-        "Selling Price": selling,
-        "Discount Price": discount,
-        "Effective Selling": effectiveSelling,
-        "Product Cost": order.productCost || 0,
-        "Delivery Cost": order.deliveryCost || 0,
-        "Ad Cost": order.adCost || 0,
+        "Gross Revenue": grossRevenue,
+        "Total Discount": totalDiscount,
+        "Total Product Cost": totalProductCost,
+        "Total Packaging": totalPackaging,
+        "Total Ad Spend": totalAdSpend,
+        "Total Delivery": totalDelivery,
+        "Total Deductions": totalDeductions,
         "Net Profit": trueProfit.toFixed(2)
       };
     });
@@ -155,6 +188,8 @@ const OrderList = () => {
       </div>
     );
   }
+
+  const selectedOrderProfit = selectedOrder ? getStableProfit(selectedOrder) : null;
 
   return (
     <div className="mt-10 w-full relative">
@@ -220,7 +255,7 @@ const OrderList = () => {
 
                       <td className="py-3 px-4 text-center">
                         <span className={`font-bold ${trueProfit > 0 ? "text-green-600" : "text-red-600"}`}>
-                            {trueProfit.toFixed(0)} Tk
+                            {formatSignedCurrency(trueProfit)}
                         </span>
                       </td>
 
@@ -298,50 +333,66 @@ const OrderList = () => {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-bounce-in">
                 <div className="bg-slate-800 p-4 flex justify-between items-center">
-                  <h3 className="text-white font-bold text-lg">💰 Profit Autopsy</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-white font-bold text-lg">💰 Profit Autopsy</h3>
+                    {selectedOrderProfit?.qty > 1 && (
+                      <span className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">
+                        [Batch Order: {selectedOrderProfit.qty} Items]
+                      </span>
+                    )}
+                  </div>
                   <button onClick={() => setSelectedOrder(null)} className="text-gray-400 hover:text-white">✕</button>
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="text-center mb-4">
                     <p className="text-sm text-gray-500">Order for {selectedOrder.name}</p>
-                    <h2 className={`text-4xl font-bold ${getStableProfit(selectedOrder).trueProfit > 0 ? "text-green-600" : "text-red-500"}`}>
-                      {getStableProfit(selectedOrder).trueProfit.toFixed(0)} Tk
+                    <h2 className={`text-4xl font-bold ${selectedOrderProfit?.trueProfit > 0 ? "text-green-600" : "text-red-500"}`}>
+                      {formatSignedCurrency(selectedOrderProfit?.trueProfit)}
                     </h2>
                     <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">True Net Profit</p>
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between border-b pb-1">
                       <span className="text-gray-600">Selling Price</span>
-                      <span className="font-bold">{selectedOrder.sellingPrice || 0} Tk</span>
+                      <span className="font-bold">{selectedOrderProfit?.grossRevenue || 0} Tk</span>
                     </div>
-                    {parseFloat(selectedOrder.discountPrice) > 0 && (
+                    {Number(selectedOrderProfit?.totalDiscount || 0) > 0 && (
                       <div className="flex justify-between border-b pb-1">
-                        <span className="text-gray-600">Discount Price</span>
-                        <span className="font-bold">{selectedOrder.discountPrice} Tk</span>
+                        <span className="text-gray-600">Discount</span>
+                        <span className="font-bold">- {selectedOrderProfit?.totalDiscount || 0} Tk</span>
                       </div>
                     )}
                     <div className="bg-slate-50 p-3 rounded-lg space-y-2">
                       <div className="flex justify-between text-red-500">
                         <span>📦 Product Cost</span>
-                        <span>- {selectedOrder.productCost}</span>
+                        <span>- {selectedOrderProfit?.totalProductCost || 0}</span>
                       </div>
                       <div className="flex justify-between text-red-500">
                         <span>🚚 Delivery</span>
-                        <span>- {selectedOrder.deliveryCost}</span>
+                        <span>- {selectedOrderProfit?.totalDelivery || 0}</span>
                       </div>
                       <div className="flex justify-between text-blue-600 font-bold bg-blue-100 p-1 rounded">
-                        <span>📢 Ad Spend (Locked)</span>
-                        <span>- {getStableProfit(selectedOrder).ads.toFixed(0)}</span>
+                        <span>📢 Ad Spend</span>
+                        <span>- {selectedOrderProfit?.totalAdSpend || 0}</span>
                       </div>
                       <div className="flex justify-between text-orange-500 font-medium">
-                        <span>🏷️ Packaging (Hidden)</span>
-                        <span>- 15</span>
+                        <span>🏷️ Packaging</span>
+                        <span>- {selectedOrderProfit?.totalPackaging || 0}</span>
                       </div>
                     </div>
                     <div className="flex justify-between pt-2 font-bold text-gray-800">
                       <span>Total Deductions</span>
-                      <span>- {getStableProfit(selectedOrder).totalSpent.toFixed(0)} Tk</span>
+                      <span>- {selectedOrderProfit?.totalDeductions?.toFixed(0)} Tk</span>
                     </div>
+                    <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <summary className="cursor-pointer font-semibold text-slate-700">View Unit Breakdown</summary>
+                      <div className="mt-2 space-y-1 text-xs text-slate-600">
+                        <div>Unit Cost: {selectedOrderProfit?.unitCost?.toFixed(2)} Tk</div>
+                        <div>Unit Selling Price: {selectedOrderProfit?.unitSellingPrice?.toFixed(2)} Tk</div>
+                        <div>Unit Discount: {selectedOrderProfit?.unitDiscount?.toFixed(2)} Tk</div>
+                        <div>Unit Packaging: {selectedOrderProfit?.unitPackaging?.toFixed(2)} Tk</div>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>

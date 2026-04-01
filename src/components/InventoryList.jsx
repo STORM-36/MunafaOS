@@ -272,20 +272,31 @@ const InventoryList = () => {
       const price = parseFloat(item.buyingPrice) || 0;
       const qty = parseFloat(item.quantity) || 0;
       const total = price * qty;
+      const isOutOfStock = qty <= 0;
 
       return (
-        <tr key={item.id} className="border-b hover:bg-gray-50 transition">
-          <td className="p-3 text-gray-600">{formatDate(item.timestamp)}</td>
-          <td className="p-3 font-semibold text-gray-700">{item.name || "(Unnamed)"}</td>
-          <td className="p-3 text-gray-600">{item.sku || "-"}</td>
-          <td className="p-3 text-gray-600">
+        <tr
+          key={item.id}
+          className={`border-b transition ${isOutOfStock ? "bg-red-50 text-gray-400 hover:bg-red-100" : "hover:bg-gray-50"}`}
+        >
+          <td className={`p-3 ${isOutOfStock ? "text-gray-400" : "text-gray-600"}`}>{formatDate(item.timestamp)}</td>
+          <td className={`p-3 font-semibold ${isOutOfStock ? "text-gray-500" : "text-gray-700"}`}>{item.name || "(Unnamed)"}</td>
+          <td className={`p-3 ${isOutOfStock ? "text-gray-400" : "text-gray-600"}`}>{item.sku || "-"}</td>
+          <td className={`p-3 ${isOutOfStock ? "text-gray-400" : "text-gray-600"}`}>
             <span className="bg-gray-100 px-2 py-1 rounded text-xs font-semibold">
               {item.category || "Other"}
             </span>
           </td>
-          <td className="p-3 text-right text-gray-700 font-medium">৳{price.toFixed(2)}</td>
-          <td className="p-3 text-right text-gray-700">{qty.toFixed(0)}</td>
-          <td className="p-3 text-right text-gray-800 font-bold">৳{total.toFixed(2)}</td>
+          <td className={`p-3 text-right font-medium ${isOutOfStock ? "text-gray-500" : "text-gray-700"}`}>৳{price.toFixed(2)}</td>
+          <td className={`p-3 text-right ${isOutOfStock ? "text-gray-500" : "text-gray-700"}`}>
+            {qty.toFixed(0)}
+            {isOutOfStock && (
+              <span className="ml-2 inline-block rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                [OUT OF STOCK]
+              </span>
+            )}
+          </td>
+          <td className={`p-3 text-right font-bold ${isOutOfStock ? "text-gray-500" : "text-gray-800"}`}>৳{total.toFixed(2)}</td>
           <td className="p-3 text-center">
             {userRole === "owner" && (
               <button

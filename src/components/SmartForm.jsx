@@ -9,10 +9,9 @@ import {
   updateDoc,
   query,
   where,
-  getDocs
+  onSnapshot
 } from 'firebase/firestore';
 import * as XLSX from 'xlsx'; // Import Excel Tool
-import UnitCostCalculator from './UnitCostCalculator'; // 👈 NEW IMPORT
 
 import { parseText } from '../utils/parser';
 import { SAMPLE_DATA } from '../utils/sampleData';
@@ -52,23 +51,23 @@ const normalizeCategory = (value) => {
 const SmartForm = () => {
   const { currentUser, workspaceId } = useAuth();
   const [inputText, setInputText] = useState('');
-  const [showCalculator, setShowCalculator] = useState(false); // 👈 NEW STATE FOR CALCULATOR
   const [inventoryOptions, setInventoryOptions] = useState([]);
+  const [discount, setDiscount] = useState(0);
+  const [adCost, setAdCost] = useState(0);
   
   const [manualData, setManualData] = useState({
     name: '',
     phone: '',
     address: '',
-    sellingPrice: '', 
-    productCost: '',
+    quantity: '1',
+    sellingPrice: '',
+    inventoryUnitCost: 0,
     deliveryCost: 120, // Default to outside Dhaka initially
-    adCost: '',        // FIXED: Now starts blank
     category: '',
     productName: '',
     inventoryId: '',
     subcategory: '',
     sku: '',
-    discountPrice: '',
 
     addedBy: '',
     userPhone: ''
@@ -127,19 +126,20 @@ const SmartForm = () => {
   }, [inputText]);
 
   useEffect(() => {
-    const effectiveWorkspaceId = workspaceId || currentUser?.workspaceId || currentUser?.uid || null;
+    const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
     if (!effectiveWorkspaceId) {
       setInventoryOptions([]);
       return;
     }
 
-    const fetchInventoryOptions = async () => {
-      try {
-        const inventoryQuery = query(
-          collection(db, 'inventory'),
-          where('workspaceId', '==', effectiveWorkspaceId)
-        );
-        const snapshot = await getDocs(inventoryQuery);
+    const inventoryQuery = query(
+      collection(db, 'inventory'),
+      where('workspaceId', '==', effectiveWorkspaceId)
+    );
+
+    const unsubscribe = onSnapshot(
+      inventoryQuery,
+      (snapshot) => {
         const options = snapshot.docs
           .map((inventoryDoc) => {
             const data = inventoryDoc.data() || {};
@@ -157,31 +157,53 @@ const SmartForm = () => {
           .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
         setInventoryOptions(options);
-      } catch (error) {
+      },
+      (error) => {
         console.error('Error loading inventory products for order form:', error);
         setInventoryOptions([]);
       }
-    };
+    );
 
-    fetchInventoryOptions();
-  }, [workspaceId, currentUser?.workspaceId, currentUser?.uid]);
+    return () => unsubscribe();
+  }, [workspaceId, currentUser?.uid]);
 
-  // � NEW: HANDLE APPLY COST FROM CALCULATOR
-  const handleApplyUnitCost = (unitCost) => {
-    const safeCost = sanitizeNumber(unitCost);
-    if (safeCost <= 0) {
-      alert('⚠️ Unit cost is invalid. Please recalculate.');
-      return;
-    }
-    setManualData(prev => ({
+  useEffect(() => {
+    const inventoryId = manualData.inventoryId;
+    const inventory = inventoryOptions;
+
+    const selectedItem = inventory.find(item => item.id === inventoryId);
+    if (!selectedItem) return;
+
+    console.log("--- DEBUGGING PRODUCT SELECTION ---");
+    console.log("Selected Item Object:", selectedItem);
+    console.log("Does it have a discount?", selectedItem.discount);
+
+    // Auto-fill the discount box from the database when product changes.
+    setDiscount(selectedItem.discount ?? selectedItem.discountPrice ?? 0);
+  }, [manualData.inventoryId, inventoryOptions]);
+
+  useEffect(() => {
+    const quantity = manualData.quantity;
+    const inventoryId = manualData.inventoryId;
+    const inventory = inventoryOptions;
+
+    const selectedItem = inventory.find(item => item.id === inventoryId);
+    if (!selectedItem) return;
+
+    const calculatedTotal = (Number(selectedItem.sellingPrice) - Number(discount)) * Number(quantity);
+
+    setManualData((prev) => ({
       ...prev,
-      productCost: safeCost.toFixed(2)
+      sellingPrice: String(calculatedTotal)
     }));
-  };
+  }, [manualData.quantity, discount, manualData.inventoryId, inventoryOptions]);
 
   // �💾 SAVE ORDER
   const handleSave = async () => {
     const selectedInventoryId = String(manualData.inventoryId || '').trim();
+    const selectedInventoryItem = inventoryOptions.find(
+      (item) => String(item.inventoryId || item.id || '').trim() === selectedInventoryId
+    );
     const hasValidInventorySelection = inventoryOptions.some(
       (item) =>
         String(item.inventoryId || item.id || '').trim() === selectedInventoryId
@@ -198,11 +220,6 @@ const SmartForm = () => {
       alert("⚠️ Please Login First!");
       return;
     }
-    const selling = parseFloat(manualData.sellingPrice);
-    const product = parseFloat(manualData.productCost);
-    const delivery = parseFloat(manualData.deliveryCost);
-    const ads = parseFloat(manualData.adCost);
-    const discount = parseFloat(manualData.discountPrice);
     const safeCategory = normalizeCategory(manualData.category);
     const addedByFallback = currentUser?.displayName || currentUser?.email || '';
     const safeAddedBy = sanitizeInput(manualData.addedBy || addedByFallback || '');
@@ -211,14 +228,44 @@ const SmartForm = () => {
       manualData.productName || manualData.subcategory || manualData.category || 'Unknown Product'
     );
 
-    if (!selling || selling <= 0) {
-      alert("⚠️ Stop! You must enter a Selling Price.");
+    const quantity = manualData.quantity;
+    const delivery = manualData.deliveryCost;
+
+    const inventory = inventoryOptions;
+    const selectedItem = inventory.find(item => item.id === inventoryId);
+    const qty = Number(quantity || 1);
+    const unitDiscount = Number(discount || 0); // Now pulled properly from state
+    const unitPackaging = Number(selectedItem?.packaging || 0); // Variable (Multiplies)
+    const unitBuyingPrice = Number(selectedItem?.buyingPrice || 0); // Variable (Multiplies)
+
+    // --- THE FIXED COSTS (Do NOT multiply by qty) ---
+    const flatAdSpend = Number(adCost || 0);
+    const flatDelivery = Number(delivery || 0);
+
+    // --- THE MULTIPLIERS ---
+    const totalDiscount = unitDiscount * qty;
+    const totalProductCost = unitBuyingPrice * qty;
+    const totalPackaging = unitPackaging * qty;
+    const totalAdSpend = flatAdSpend;
+    const totalDelivery = flatDelivery;
+
+    const grossRevenue = (Number(selectedItem?.sellingPrice || 0) * qty) - totalDiscount;
+    // --- THE NEW AUTOPSY MATH ---
+    const totalDeductions = totalProductCost + totalPackaging + flatAdSpend + flatDelivery;
+    const trueNetProfit = grossRevenue - totalDeductions;
+
+    if (!grossRevenue || grossRevenue <= 0) {
+      alert("⚠️ Stop! You must enter a valid quantity/discount combination.");
       return;
     }
 
-    // Calculate Profit for this single order
-    const totalCost = (product || 0) + (delivery || 0) + (ads || 0);
-    const netProfit = selling - totalCost;
+    // Strict negative-stock guard: block order creation when requested quantity exceeds stock.
+    const availableStock = sanitizeNumber(selectedInventoryItem?.quantity || 0);
+
+    if (qty > availableStock) {
+      alert(`Error: Insufficient stock. Only ${availableStock} remaining in this batch.`);
+      return;
+    }
 
     try {
       // 🛡️ SANITIZE ALL INPUTS BEFORE SAVING
@@ -229,11 +276,26 @@ const SmartForm = () => {
         name: sanitizeInput(manualData.name),
         phone: sanitizeInput(manualData.phone),
         address: sanitizeInput(manualData.address),
-        sellingPrice: sanitizeNumber(selling),
-        productCost: sanitizeNumber(product || 0),
-        deliveryCost: sanitizeNumber(delivery || 0),
-        adCost: sanitizeNumber(ads || 0),
-        discountPrice: sanitizeNumber(discount || 0),
+        quantity: qty,
+        qty,
+        sellingPrice: sanitizeNumber(grossRevenue),
+        productCost: sanitizeNumber(totalProductCost || 0),
+        unitCost: sanitizeNumber(unitBuyingPrice || 0),
+        unitSellingPrice: sanitizeNumber(Number(selectedItem?.sellingPrice || 0)),
+        unitDiscount: sanitizeNumber(unitDiscount || 0),
+        unitPackaging: sanitizeNumber(unitPackaging || 0),
+        deliveryCost: sanitizeNumber(totalDelivery || 0),
+        adCost: sanitizeNumber(flatAdSpend || 0),
+        flatAdSpend: sanitizeNumber(flatAdSpend || 0),
+        totalDiscount: sanitizeNumber(totalDiscount || 0),
+        totalProductCost: sanitizeNumber(totalProductCost || 0),
+        totalPackaging: sanitizeNumber(totalPackaging || 0),
+        totalAdSpend: sanitizeNumber(totalAdSpend || 0),
+        totalDelivery: sanitizeNumber(totalDelivery || 0),
+        grossRevenue: sanitizeNumber(grossRevenue || 0),
+        totalDeductions: sanitizeNumber(totalDeductions || 0),
+        trueNetProfit: Number(trueNetProfit || 0),
+        discountPrice: sanitizeNumber(Number(discount || 0)),
         category: sanitizeInput(safeCategory),
         productName: sanitizeInput(manualData.productName),
         inventoryId,
@@ -241,7 +303,10 @@ const SmartForm = () => {
         sku: sanitizeInput(manualData.sku),
         addedBy: safeAddedBy,
         userPhone: sanitizeInput(manualData.userPhone),
-        netProfit: netProfit,
+        totalRevenue: sanitizeNumber(grossRevenue || 0),
+        totalExpenses: sanitizeNumber(totalDeductions || 0),
+        finalProfit: Number(trueNetProfit || 0),
+        netProfit: trueNetProfit,
         timestamp: serverTimestamp()
       });
 
@@ -261,9 +326,9 @@ const SmartForm = () => {
       }
 
       // Auto-deduct inventory right after order save using exact inventory doc id.
-      // SmartForm has no explicit quantity state, so each saved order deducts 1 unit.
+      // Deduct exactly the sold quantity from inventory.
       try {
-        const orderQuantity = 1;
+        const orderQuantity = qty;
 
         if (inventoryId) {
           const invRef = doc(db, 'inventory', inventoryId);
@@ -281,17 +346,19 @@ const SmartForm = () => {
         console.error('Inventory auto-deduction failed:', inventoryError);
       }
 
-      // Reset Form
-      setInputText(''); 
+      alert("✅ Order Saved!");
+
+      // Reset Form for next customer
+      setInputText('');
+      setDiscount(0);
+      setAdCost(0);
       setManualData({
         name: '', phone: '', address: '',
-        sellingPrice: '', productCost: '',
-        deliveryCost: 120, adCost: '',
+        quantity: '1', sellingPrice: '', inventoryUnitCost: 0,
+        deliveryCost: 120,
         category: '', productName: '', inventoryId: '', subcategory: '', sku: '',
-        discountPrice: '',
         addedBy: '', userPhone: ''
       });
-      alert("✅ Order Saved!");
     } catch (error) {
       console.error("Error saving:", error);
       alert("❌ Error saving order");
@@ -304,8 +371,7 @@ const SmartForm = () => {
       setInputText(random.text);
       setManualData(prev => ({
         ...prev,
-        sellingPrice: random.sell,
-        productCost: random.cost
+        sellingPrice: random.sell
       }));
     }
   };
@@ -393,6 +459,7 @@ const SmartForm = () => {
                     ...previousData,
                     inventoryId: '',
                     productName: '',
+                    inventoryUnitCost: 0,
                     sku: previousData.sku
                   }));
                   return;
@@ -402,6 +469,7 @@ const SmartForm = () => {
                   ...previousData,
                   inventoryId: foundProduct.id,
                   productName: foundProduct.name || previousData.productName,
+                  inventoryUnitCost: sanitizeNumber(foundProduct.buyingPrice || 0),
                   sku: foundProduct.sku || previousData.sku,
                   subcategory: foundProduct.subcategory || previousData.subcategory,
                   category: foundProduct.category || previousData.category
@@ -411,8 +479,12 @@ const SmartForm = () => {
             >
               <option value="">Select from inventory</option>
               {inventoryOptions.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
+                <option
+                  key={product.id}
+                  value={product.id}
+                  disabled={sanitizeNumber(product.quantity || 0) <= 0}
+                >
+                  {`${product.name}${product.batchNumber ? ` (${product.batchNumber})` : ''} - ${sanitizeNumber(product.quantity || 0)} in stock${sanitizeNumber(product.quantity || 0) <= 0 ? ' [OUT OF STOCK]' : ''}`}
                 </option>
               ))}
             </select>
@@ -435,59 +507,45 @@ const SmartForm = () => {
         <h3 className="text-xs font-bold text-blue-800 uppercase mb-2">💰 Unit Economics</h3>
         <div className="grid grid-cols-2 gap-3">
             <div>
-                <label className="block text-xs text-gray-500">Selling Price</label>
+                <label className="block text-xs text-gray-500">Quantity</label>
+                <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={manualData.quantity}
+                    onChange={(e) => setManualData({...manualData, quantity: e.target.value})}
+                    className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                />
+            </div>
+            <div>
+                <label className="block text-xs text-gray-500">Discount (Per Unit)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                  className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500">Ad Spend (Per Unit)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={adCost}
+                  onChange={(e) => setAdCost(e.target.value)}
+                  className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-gray-500">Total Selling Price (Auto-Calculated)</label>
                 <input 
                     type="number" 
                     value={manualData.sellingPrice}
-                    onChange={(e) => setManualData({...manualData, sellingPrice: e.target.value})}
+                  readOnly
                     className="w-full p-2 border border-green-400 rounded font-bold text-green-700 bg-white"
-                />
-            </div>
-            <div>
-                <label className="block text-xs text-gray-500">Product Cost</label>
-                <div className="flex gap-2 flex-wrap md:flex-nowrap">
-                  <input 
-                      type="number" 
-                      value={manualData.productCost}
-                      onChange={(e) => setManualData({...manualData, productCost: e.target.value})}
-                      className="flex-1 min-w-[120px] p-2 border border-red-200 rounded text-red-600 bg-white text-sm"
-                  />
-                  {/* 👇 NEW: CALCULATOR BUTTON */}
-                  <button 
-                    onClick={() => setShowCalculator(true)}
-                    title="Calculate unit cost from batch wholesale"
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-2 md:px-3 rounded font-bold transition text-lg md:text-base flex-shrink-0"
-                  >
-                    🧮
-                  </button>
-                </div>
-            </div>
-            <div>
-                <label className="block text-xs text-gray-500">Delivery (Auto)</label>
-                <input 
-                    type="number" 
-                    value={manualData.deliveryCost}
-                    onChange={(e) => setManualData({...manualData, deliveryCost: e.target.value})}
-                    className="w-full p-2 border border-red-200 rounded text-red-600 bg-white"
-                />
-            </div>
-            <div>
-                <label className="block text-xs text-blue-600 font-bold">Ad Cost (CPR)</label>
-                <input 
-                    type="number" 
-                    placeholder="e.g. 50"
-                    value={manualData.adCost}
-                    onChange={(e) => setManualData({...manualData, adCost: e.target.value})}
-                    className="w-full p-2 border border-blue-300 rounded text-blue-700 font-bold bg-white shadow-sm"
-                />
-            </div>
-            <div>
-                <label className="block text-xs text-gray-500">Discount Price</label>
-                <input 
-                    type="number" 
-                    value={manualData.discountPrice}
-                    onChange={(e) => setManualData({...manualData, discountPrice: e.target.value})}
-                    className="w-full p-2 border border-green-200 rounded font-bold text-green-700 bg-white"
                 />
             </div>
         </div>
@@ -526,14 +584,6 @@ const SmartForm = () => {
       >
         💾 Save Order
       </button>
-
-      {/* 👇 NEW: CALCULATOR MODAL */}
-      {showCalculator && (
-        <UnitCostCalculator 
-          onApplyCost={handleApplyUnitCost}
-          onClose={() => setShowCalculator(false)}
-        />
-      )}
     </div>
   );
 };

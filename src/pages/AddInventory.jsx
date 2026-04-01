@@ -10,6 +10,7 @@ const AddInventory = () => {
   const { currentUser, workspaceId } = useAuth();
   const [aiInput, setAiInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [packagingCost, setPackagingCost] = useState(0);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -77,6 +78,8 @@ const AddInventory = () => {
     const productName = String(formData.name || "").trim();
     const safeSellingPrice = toNumber(formData.sellingPrice);
     const safeDiscountPrice = toNumber(formData.discountPrice);
+    const discountState = formData.discountPrice;
+    const safePackagingCost = toNumber(packagingCost);
     const safeCategory = normalizeCategory(formData.category);
     const addedByFallback = currentUser?.displayName || currentUser?.email || "";
     const safeAddedBy = String(formData.addedBy || addedByFallback || "").trim();
@@ -89,6 +92,7 @@ const AddInventory = () => {
         workspaceId: effectiveWorkspaceId,
         name: String(formData.name || "").trim(),
         buyingPrice: safeBuyingPrice,
+        packaging: Number(safePackagingCost),
         quantity: safeQuantity,
         category: String(safeCategory || "Other").trim(),
         subcategory: String(formData.subcategory || "").trim(),
@@ -98,6 +102,7 @@ const AddInventory = () => {
         expiryDate: String(formData.expiryDate || "").trim(),
         stockNotes: String(formData.stockNotes || "").trim(),
         sellingPrice: safeSellingPrice,
+        discount: Number(discountState || 0),
         discountPrice: safeDiscountPrice,
 
         supplier: String(formData.supplier || "").trim(),
@@ -142,6 +147,7 @@ const AddInventory = () => {
         addedBy: "",
         userPhone: ""
       });
+      setPackagingCost(0);
       setAiInput("");
     } catch (error) {
       console.error("Error:", error);
@@ -306,6 +312,15 @@ const AddInventory = () => {
                   className="w-full p-2 border rounded font-bold text-gray-700"
                   value={formData.sellingPrice}
                   onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">Packaging Cost (Per Unit)</label>
+                <input
+                  type="number"
+                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  value={packagingCost}
+                  onChange={(e) => setPackagingCost(e.target.value)}
                 />
               </div>
               <div>
