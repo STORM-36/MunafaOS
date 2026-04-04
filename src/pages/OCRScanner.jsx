@@ -5,9 +5,11 @@ import { db } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { logAudit } from "../utils/auditLogger";
+import { useNavigate } from "react-router-dom";
 
 const OCRScanner = () => {
   const { currentUser, workspaceId } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
     buyingPrice: "",
@@ -138,7 +140,12 @@ const OCRScanner = () => {
         }
       }
 
-      alert("✅ Stock Added to Inventory!");
+      const goToList = window.confirm(
+        `✅ Product saved to inventory!\n\nSome fields may still be empty.\n\nOK → Go to Inventory List\nCancel → Stay and scan more`
+      );
+      if (goToList) {
+        navigate("/inventory-list");
+      }
       setFormData({
         name: "",
         buyingPrice: "",

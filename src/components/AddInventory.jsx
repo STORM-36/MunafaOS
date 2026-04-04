@@ -8,9 +8,11 @@ import { db, auth } from "../firebase"; // Using your existing firebase connecti
 import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { useAuth } from '../context/AuthContext';
 import { logAudit } from '../utils/auditLogger';
+import { useNavigate } from "react-router-dom";
 
 const AddInventory = () => {
   const { currentUser, workspaceId } = useAuth();
+  const navigatePage = useNavigate();
   // 1. State for the Magic AI Input
   const [aiInput, setAiInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
@@ -162,7 +164,13 @@ const AddInventory = () => {
           console.error(auditErr);
         }
       }
-      alert("✅ Bulk items saved to inventory!");
+      const bulkCount = bulkItems.length;
+      const goToList = window.confirm(
+        `✅ ${bulkCount} product(s) saved to inventory!\n\nSome fields like Selling Price may still be empty.\n\nClick OK to go to Inventory List.\nClick Cancel to stay and add more.`
+      );
+      if (goToList) {
+        navigatePage("/inventory-list");
+      }
       setBulkItems([]);
       setAiInput("");
       setBulkSupplier({ supplierName: "", invoiceNumber: "" });
@@ -269,7 +277,13 @@ const AddInventory = () => {
         }
       }
 
-      alert("✅ Stock Added to Inventory!");
+      const savedName = String(formData.name || "").trim();
+      const goToListSingle = window.confirm(
+        `✅ "${savedName}" saved to inventory!\n\nSome fields like Selling Price or Supplier may still be empty.\n\nClick OK to go to Inventory List.\nClick Cancel to stay and add another.`
+      );
+      if (goToListSingle) {
+        navigatePage("/inventory-list");
+      }
       setFormData({
         name: "",
         buyingPrice: "",

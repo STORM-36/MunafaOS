@@ -5,9 +5,11 @@ import { db } from "../firebase";
 import { collection, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { logAudit } from "../utils/auditLogger";
+import { useNavigate } from "react-router-dom";
 
 const BulkImport = () => {
   const { currentUser, workspaceId } = useAuth();
+  const navigate = useNavigate();
   const [aiInput, setAiInput] = useState("");
   const [isBulkThinking, setIsBulkThinking] = useState(false);
   const [bulkItems, setBulkItems] = useState([]);
@@ -112,7 +114,13 @@ const BulkImport = () => {
           console.error(auditErr);
         }
       }
-      alert("✅ Bulk items saved to inventory!");
+      const bulkCount = bulkItems.length;
+      const goToList = window.confirm(
+        `✅ ${bulkCount} product(s) saved!\n\nSome fields like Selling Price may be empty.\n\nOK → Go to Inventory List\nCancel → Stay and add more`
+      );
+      if (goToList) {
+        navigate("/inventory-list");
+      }
       setBulkItems([]);
       setAiInput("");
       setBulkSupplier({ supplierName: "", invoiceNumber: "" });

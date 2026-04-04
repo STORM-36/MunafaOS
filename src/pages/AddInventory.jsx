@@ -1,13 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { parseProductWithAI } from "../services/aiService";
 import { CATEGORY_OPTIONS } from "../utils/categories";
 import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { logAudit } from "../utils/auditLogger";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const AddInventory = () => {
   const { currentUser, workspaceId } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const editItem = location.state?.editItem || null;
+  const isEditMode = !!editItem;
   const [aiInput, setAiInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [packagingCost, setPackagingCost] = useState(0);
@@ -31,6 +36,30 @@ const AddInventory = () => {
     addedBy: "",
     userPhone: ""
   });
+
+  useEffect(() => {
+    if (!editItem) return;
+    setFormData({
+      name: editItem.name || "",
+      buyingPrice: editItem.buyingPrice || "",
+      quantity: editItem.quantity || "",
+      category: editItem.category || "",
+      subcategory: editItem.subcategory || "",
+      sku: editItem.sku || "",
+      batchNumber: editItem.batchNumber || "",
+      unit: editItem.unit || "",
+      expiryDate: editItem.expiryDate || "",
+      stockNotes: editItem.stockNotes || "",
+      sellingPrice: editItem.sellingPrice || "",
+      discountPrice: editItem.discountPrice || "",
+      supplier: editItem.supplier || "",
+      supplierPhone: editItem.supplierPhone || "",
+      invoiceNumber: editItem.invoiceNumber || "",
+      addedBy: editItem.addedBy || "",
+      userPhone: editItem.userPhone || ""
+    });
+    setPackagingCost(editItem.packaging || 0);
+  }, []);
 
   const toNumber = (value) => {
     const num = parseFloat(value);
@@ -86,6 +115,54 @@ const AddInventory = () => {
 
     if (safeBuyingPrice <= 0) return alert("Buying price must be greater than 0");
 
+    if (isEditMode) {
+      try {
+        await updateDoc(doc(db, "inventory", editItem.id), {
+          name: String(formData.name || "").trim(),
+          buyingPrice: safeBuyingPrice,
+          packaging: Number(safePackagingCost),
+          quantity: safeQuantity,
+          category: String(safeCategory || "Other").trim(),
+          subcategory: String(formData.subcategory || "").trim(),
+          sku: String(formData.sku || "").trim(),
+          batchNumber: String(formData.batchNumber || "").trim(),
+          unit: String(formData.unit || "").trim(),
+          expiryDate: String(formData.expiryDate || "").trim(),
+          stockNotes: String(formData.stockNotes || "").trim(),
+          sellingPrice: safeSellingPrice,
+          discount: Number(formData.discountPrice || 0),
+          discountPrice: safeDiscountPrice,
+          supplier: String(formData.supplier || "").trim(),
+          supplierPhone: String(formData.supplierPhone || "").trim(),
+          invoiceNumber: String(formData.invoiceNumber || "").trim(),
+          addedBy: safeAddedBy,
+          userPhone: String(formData.userPhone || "").trim(),
+          updatedAt: serverTimestamp()
+        });
+
+        if (currentUser) {
+          try {
+            await logAudit(
+              currentUser.workspaceId,
+              currentUser,
+              "EDITED_PRODUCT",
+              `Edited product: ${productName}`
+            );
+          } catch (err) {
+            console.error(err);
+          }
+        }
+
+        alert("✅ Inventory Updated!");
+        navigate("/inventory-list");
+        return;
+      } catch (error) {
+        console.error("Error updating:", error);
+        alert("❌ Failed to update.");
+        return;
+      }
+    }
+
     try {
       await addDoc(collection(db, "inventory"), {
         userId: currentUser.uid,
@@ -127,7 +204,13 @@ const AddInventory = () => {
         }
       }
 
-      alert("✅ Stock Added to Inventory!");
+      const justSavedName = productName;
+      const confirmed = window.confirm(
+        `✅ "${justSavedName}" saved to inventory!\n\nSome fields like Selling Price or Supplier may still be empty.\n\nClick OK to go to Inventory List.\nClick Cancel to stay and add another product.`
+      );
+      if (confirmed) {
+        navigate("/inventory-list");
+      }
       setFormData({
         name: "",
         buyingPrice: "",
@@ -158,13 +241,13 @@ const AddInventory = () => {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-xl font-bold text-gray-800">📦 Add New Stock</h2>
+        <h2 className="text-xl font-bold text-gray-800">{isEditMode ? "✏️ Edit Stock" : "📦 Add New Stock"}</h2>
         <p className="text-xs text-gray-400">Add inventory with AI assistance.</p>
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 max-w-2xl mx-auto mt-6">
         <div className="border-b pb-4 mb-4">
-          <h2 className="text-xl font-bold text-gray-800">📦 Add New Stock</h2>
+          <h2 className="text-xl font-bold text-gray-800">{isEditMode ? "✏️ Edit Stock" : "📦 Add New Stock"}</h2>
           <p className="text-xs text-gray-400">Use AI to parse supplier messages instantly.</p>
         </div>
 
@@ -396,7 +479,7 @@ const AddInventory = () => {
             onClick={handleSave}
             className="w-full bg-slate-800 text-white font-bold py-3 rounded-xl hover:bg-slate-900 transition shadow-lg mt-2"
           >
-            📥 Save to Inventory
+            {isEditMode ? "✏️ Update Inventory" : "📥 Save to Inventory"}
           </button>
         </div>
       </div>
