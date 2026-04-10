@@ -157,9 +157,16 @@ const Dashboard = () => {
       setIsLoading(true);
 
       try {
+        const effectiveDashboardWorkspaceId = 
+          currentUser?.workspaceId || 
+          currentUser?.uid || null;
+
+        if (!effectiveDashboardWorkspaceId) return;
+
         const ordersQuery = query(
           collection(db, 'orders'),
-          where('workspaceId', '==', currentUser.workspaceId)
+          where('workspaceId', '==', 
+            effectiveDashboardWorkspaceId)
         );
         const querySnapshot = await getDocs(ordersQuery);
         const orders = querySnapshot.docs.map((docSnap) => docSnap.data());
@@ -170,16 +177,20 @@ const Dashboard = () => {
         const categoryMap = {};
 
         orders.forEach((order) => {
-          const selling = Number(order?.sellingPrice ?? 0);
-          const discount = Number(order?.discountPrice ?? 0);
-          const effectiveRevenue = discount > 0 ? discount : selling;
+          const effectiveRevenue = 
+            Number(order?.totalRevenue ?? 0);
           const price = Number.isFinite(effectiveRevenue) ? effectiveRevenue : 0;
           totalRevenue += price;
 
           const cat = order?.category || 'Uncategorized';
           categoryMap[cat] = (categoryMap[cat] || 0) + price;
 
-          const profit = Number(order?.netProfit ?? 0);
+          const profit = Number(
+            order?.trueNetProfit ?? 
+            order?.finalProfit ?? 
+            order?.netProfit ?? 
+            0
+          );
           totalProfit += Number.isFinite(profit) ? profit : 0;
 
           if (order?.status === 'Pending' || !order?.status) {

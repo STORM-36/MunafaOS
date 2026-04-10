@@ -61,6 +61,42 @@ export const parseText = (rawText) => {
     workingText = workingText.replace(detectedPhone, ""); 
   }
 
+  const labelPatterns = [
+    { nameKey: /(?:নাম|নামঃ)\s*[:\-]?\s*/i, 
+      addrKey: /(?:ঠিকানা|ঠিকানাঃ)\s*[:\-]?\s*/i },
+    { nameKey: /(?:name|customer|customer name)\s*[:\-]?\s*/i,
+      addrKey: /(?:address|delivery address|delivery)\s*[:\-]?\s*/i }
+  ];
+
+  let labelDetectedName = "";
+  let labelDetectedAddress = "";
+
+  for (const pattern of labelPatterns) {
+    const nameMatch = workingText.match(
+      new RegExp(pattern.nameKey.source + 
+      "([^\\n]+)", "i")
+    );
+    const addrMatch = workingText.match(
+      new RegExp(pattern.addrKey.source + 
+      "([^\\n]+)", "i")
+    );
+
+    if (nameMatch?.[1]) {
+      labelDetectedName = 
+        nameMatch[1].trim();
+      workingText = workingText.replace(
+        nameMatch[0], ""
+      );
+    }
+    if (addrMatch?.[1]) {
+      labelDetectedAddress = 
+        addrMatch[1].trim();
+      workingText = workingText.replace(
+        addrMatch[0], ""
+      );
+    }
+  }
+
   // 2. CLEAN UP (Run the safe cleaner)
   workingText = cleanInput(workingText);
 
@@ -160,8 +196,9 @@ export const parseText = (rawText) => {
   }
 
   return {
-    name: detectedName,
+    name: labelDetectedName || detectedName,
     phone: detectedPhone,
-    address: detectedAddress
+    address: labelDetectedAddress || 
+             detectedAddress
   };
 };

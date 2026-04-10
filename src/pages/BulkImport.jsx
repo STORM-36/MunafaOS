@@ -250,6 +250,27 @@ const BulkImport = () => {
                 </div>
               </div>
             </div>
+              {(() => {
+                const missingPrice = bulkItems.filter(
+                  (item) =>
+                    (!item.sellingPrice && !item.price && !item.buyingPrice) ||
+                    parseFloat(
+                      item.sellingPrice ??
+                      item.price ??
+                      item.buyingPrice ?? 0
+                    ) === 0
+                ).length;
+                return missingPrice > 0 ? (
+                  <div className="mb-3 rounded-lg bg-yellow-50 border border-yellow-300 px-4 py-3">
+                    <p className="text-sm text-yellow-700 font-semibold">
+                      ⚠️ {missingPrice} of {bulkItems.length} product(s) have no selling price.
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      You can edit them after saving from the inventory list.
+                    </p>
+                  </div>
+                ) : null;
+              })()}
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleBulkSave}

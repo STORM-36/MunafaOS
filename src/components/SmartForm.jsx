@@ -75,12 +75,10 @@ const SmartForm = () => {
 
 // ⚡ SMART DETECTION LOGIC
   useEffect(() => {
-    if (!inputText) return; 
+    if (!inputText) return;
 
     const result = parseText(inputText);
-    
-    // LIST OF AREAS INSIDE DHAKA (English + Bangla)
-    // If any of these words appear, we charge 60 Tk.
+
     const dhakaAreas = [
       'dhaka', 'ঢাকা',
       'mirpur', 'মিরপুর',
@@ -93,7 +91,7 @@ const SmartForm = () => {
       'farmgate', 'ফার্মগেট',
       'motijheel', 'মতিঝিল',
       'badda', 'বাড্ডা',
-      'jatrabari', 'যাত্রাবাড়ী',
+      'jatrabari', 'যাত্রাবাড়ী',
       'khilgaon', 'খিলগাঁও',
       'rampura', 'রামপুরা',
       'bashundhara', 'বসুন্ধরা',
@@ -102,16 +100,15 @@ const SmartForm = () => {
       'new market', 'নিউ মার্কেট'
     ];
 
-    let autoDelivery = 120; // Default: Outside Dhaka (120)
-    
+    let autoDelivery = 120;
     if (result.address) {
-      const lowerAddress = result.address.toLowerCase();
-      
-      // Check if ANY keyword from our list is inside the address
-      const isInsideDhaka = dhakaAreas.some(area => lowerAddress.includes(area));
-      
+      const lowerAddress = 
+        result.address.toLowerCase();
+      const isInsideDhaka = dhakaAreas.some(
+        area => lowerAddress.includes(area)
+      );
       if (isInsideDhaka) {
-        autoDelivery = 60; // Found a match! Set to 60.
+        autoDelivery = 60;
       }
     }
 
@@ -120,9 +117,8 @@ const SmartForm = () => {
       phone: result.phone || prev.phone,
       name: result.name || prev.name,
       address: result.address || prev.address,
-      deliveryCost: autoDelivery 
+      deliveryCost: autoDelivery
     }));
-
   }, [inputText]);
 
   useEffect(() => {

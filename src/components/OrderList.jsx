@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { db, auth } from '../firebase'; 
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDocs, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import Receipt from './Receipt'; // 👈 Import Receipt
 import { useAuth } from '../context/AuthContext';
 import { logAudit } from '../utils/auditLogger';
+
+const PAGE_SIZE = 20;
 
 const OrderList = () => {
   const { currentUser, workspaceId, userRole } = useAuth();
@@ -12,7 +14,164 @@ const OrderList = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null); 
   const [receiptOrder, setReceiptOrder] = useState(null); // 👈 For receipt modal
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [dateRange, setDateRange] = useState("All");
+  const [totalCount, setTotalCount] = useState(0);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
+  const [allTimeStats, setAllTimeStats] = useState({
+    totalOrders: 0,
+    totalRevenue: 0,
+    totalProfit: 0,
+    pendingOrders: 0
+  });
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
+
+  const filteredOrders = useMemo(() => {
+    let result = [...orders];
+
+    if (customFrom && customTo) {
+      const from = new Date(customFrom);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(customTo);
+      to.setHours(23, 59, 59, 999);
+
+      result = result.filter((order) => {
+        if (!order.timestamp) return false;
+        const orderDate = order.timestamp.toDate
+          ? order.timestamp.toDate()
+          : new Date(order.timestamp);
+        return orderDate >= from &&
+               orderDate <= to;
+      });
+    }
+
+    if (dateRange !== "All") {
+      const now = new Date();
+      const startOf = (unit) => {
+        const d = new Date();
+        if (unit === "today") {
+          d.setHours(0, 0, 0, 0);
+        } else if (unit === "week") {
+          d.setDate(d.getDate() - 7);
+          d.setHours(0, 0, 0, 0);
+        } else if (unit === "month") {
+          d.setDate(d.getDate() - 30);
+          d.setHours(0, 0, 0, 0);
+        }
+        return d;
+      };
+
+      const cutoff = dateRange === "Today"
+        ? startOf("today")
+        : dateRange === "Week"
+        ? startOf("week")
+        : startOf("month");
+
+      result = result.filter((order) => {
+        if (!order.timestamp) return false;
+        const orderDate = order.timestamp.toDate
+          ? order.timestamp.toDate()
+          : new Date(order.timestamp);
+        return orderDate >= cutoff;
+      });
+    }
+
+    if (searchText.trim()) {
+      const search = searchText.toLowerCase();
+      result = result.filter((order) =>
+        (order.name || "").toLowerCase().includes(search) ||
+        (order.phone || "").toLowerCase().includes(search) ||
+        (order.productName || "").toLowerCase().includes(search)
+      );
+    }
+
+    if (statusFilter !== "All") {
+      result = result.filter((order) => {
+        const effectiveStatus = order.status || "Pending";
+        return effectiveStatus === statusFilter;
+      });
+    }
+
+    return result;
+  }, [orders, searchText, statusFilter, dateRange, customFrom, customTo]);
+
+  const summaryStats = useMemo(() => {
+    const isFiltered =
+      searchText.trim() !== "" ||
+      statusFilter !== "All" ||
+      dateRange !== "All" ||
+      (customFrom !== "" && customTo !== "");
+
+    if (!isFiltered) {
+      return {
+        totalOrders: allTimeStats.totalOrders,
+        totalRevenue: allTimeStats.totalRevenue,
+        totalProfit: allTimeStats.totalProfit,
+        pendingOrders: allTimeStats.pendingOrders,
+        isFiltered: false,
+        label: "All time"
+      };
+    }
+
+    const totalOrders = filteredOrders.length;
+
+    const totalRevenue = filteredOrders.reduce(
+      (sum, order) =>
+        sum +
+        (parseFloat(order.totalRevenue) ||
+         parseFloat(order.grossRevenue) || 0),
+      0
+    );
+
+    const totalProfit = filteredOrders.reduce(
+      (sum, order) =>
+        sum +
+        (parseFloat(order.trueNetProfit) ||
+         parseFloat(order.finalProfit) ||
+         parseFloat(order.netProfit) || 0),
+      0
+    );
+
+    const pendingOrders = filteredOrders.filter(
+      (order) =>
+        !order.status ||
+        order.status === "Pending"
+    ).length;
+
+    const formatDateLabel = (dateStr) => {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-GB", {
+        day: "2-digit", month: "short"
+      });
+    };
+
+    const label =
+      (customFrom && customTo)
+        ? `${formatDateLabel(customFrom)} -
+       ${formatDateLabel(customTo)}` :
+      dateRange === "Today" ? "Today" :
+      dateRange === "Week" ? "This week" :
+      dateRange === "Month" ? "This month" :
+      statusFilter !== "All" ? statusFilter :
+      "Filtered";
+
+    return {
+      totalOrders,
+      totalRevenue,
+      totalProfit,
+      pendingOrders,
+      isFiltered: true,
+      label
+    };
+  }, [filteredOrders, allTimeStats,
+      searchText, statusFilter,
+      dateRange, customFrom, customTo]);
 
   // 1. 🔄 FETCH DATA
   useEffect(() => {
@@ -23,18 +182,120 @@ const OrderList = () => {
     }
     
     const q = query(
-      collection(db, "orders"), 
-      where("workspaceId", "==", effectiveWorkspaceId), 
-      orderBy("timestamp", "desc")
+      collection(db, "orders"),
+      where("workspaceId", "==", effectiveWorkspaceId),
+      orderBy("timestamp", "desc"),
+      limit(PAGE_SIZE)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setOrders(ordersData);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(q,
+      (snapshot) => {
+        const ordersData = snapshot.docs.map(
+          doc => ({ id: doc.id, ...doc.data() })
+        );
+        setOrders(ordersData);
+        setLastVisibleDoc(
+          snapshot.docs[
+            snapshot.docs.length - 1
+          ] || null
+        );
+        setHasMore(
+          snapshot.docs.length === PAGE_SIZE
+        );
+        setLoading(false);
+
+        if (!effectiveWorkspaceId) return;
+        const countQuery = query(
+          collection(db, "orders"),
+          where("workspaceId", "==",
+            effectiveWorkspaceId)
+        );
+        getCountFromServer(countQuery)
+          .then((snap) =>
+            setTotalCount(snap.data().count))
+          .catch(() => {});
+
+        fetchAllTimeStats();
+      }
+    );
 
     return () => unsubscribe();
+  }, [effectiveWorkspaceId]);
+
+  useEffect(() => {
+    if (!effectiveWorkspaceId) return;
+    const countQuery = query(
+      collection(db, "orders"),
+      where("workspaceId", "==", effectiveWorkspaceId)
+    );
+    getCountFromServer(countQuery)
+      .then((snap) => setTotalCount(snap.data().count))
+      .catch(() => setTotalCount(0));
+  }, [effectiveWorkspaceId]);
+
+  const fetchAllTimeStats = async () => {
+    if (!effectiveWorkspaceId) return;
+    try {
+      const allOrdersQuery = query(
+        collection(db, "orders"),
+        where("workspaceId", "==", effectiveWorkspaceId)
+      );
+      const snapshot = await getDocs(allOrdersQuery);
+      const allOrders = snapshot.docs.map(
+        (d) => ({ id: d.id, ...d.data() })
+      );
+
+      const totalOrders = allOrders.length;
+
+      const totalRevenue = allOrders.reduce(
+        (sum, order) =>
+          sum +
+          (parseFloat(order.totalRevenue) ||
+           parseFloat(order.grossRevenue) ||
+           0),
+        0
+      );
+
+      const totalProfit = allOrders.reduce(
+        (sum, order) =>
+          sum +
+          (parseFloat(order.trueNetProfit) ||
+           parseFloat(order.finalProfit) ||
+           parseFloat(order.netProfit) ||
+           0),
+        0
+      );
+
+      const pendingOrders = allOrders.filter(
+        (order) =>
+          !order.status ||
+          order.status === "Pending"
+      ).length;
+
+      setAllTimeStats({
+        totalOrders,
+        totalRevenue,
+        totalProfit,
+        pendingOrders
+      });
+
+      console.log("AllTimeStats fetched:", {
+        totalOrders,
+        totalRevenue,
+        totalProfit,
+        pendingOrders
+      });
+
+    } catch (error) {
+      console.error(
+        "Error fetching all time stats:",
+        error
+      );
+    }
+  };
+
+  useEffect(() => {
+    fetchAllTimeStats();
   }, [effectiveWorkspaceId]);
 
   // 2. 🟢 STATUS CHANGER (Pending -> Delivered -> Returned)
@@ -189,6 +450,49 @@ const OrderList = () => {
     );
   }
 
+  const handleLoadMore = async () => {
+    if (isLoadingMore || !hasMore || !lastVisibleDoc) return;
+    setIsLoadingMore(true);
+    setLoadMoreError("");
+    try {
+      const nextQ = query(
+        collection(db, "orders"),
+        where("workspaceId", "==", effectiveWorkspaceId),
+        orderBy("timestamp", "desc"),
+        startAfter(lastVisibleDoc),
+        limit(PAGE_SIZE)
+      );
+      const snapshot = await getDocs(nextQ);
+      const newOrders = snapshot.docs.map(
+        (d) => ({ id: d.id, ...d.data() })
+      );
+      setOrders((prev) => {
+        const existingIds = new Set(
+          prev.map((o) => o.id)
+        );
+        const unique = newOrders.filter(
+          (o) => !existingIds.has(o.id)
+        );
+        return [...prev, ...unique];
+      });
+      setLastVisibleDoc(
+        snapshot.docs[
+          snapshot.docs.length - 1
+        ] || null
+      );
+      setHasMore(
+        snapshot.docs.length === PAGE_SIZE
+      );
+    } catch (error) {
+      console.error("Load more error:", error);
+      setLoadMoreError(
+        "Could not load more orders. Try again."
+      );
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   const selectedOrderProfit = selectedOrder ? getStableProfit(selectedOrder) : null;
 
   return (
@@ -209,6 +513,189 @@ const OrderList = () => {
               <span>📄</span> Export Excel
             </button>
           </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+
+            <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+              <p className="text-xs text-blue-600 font-bold uppercase mb-1">
+                Total Orders
+              </p>
+              <p className="text-2xl font-bold text-blue-700">
+                {summaryStats.totalOrders}
+              </p>
+              <p className="text-xs text-blue-400 mt-1">
+                {summaryStats.label}
+              </p>
+            </div>
+
+            <div className="bg-green-50 p-3 rounded-xl border border-green-100">
+              <p className="text-xs text-green-600 font-bold uppercase mb-1">
+                Total Revenue
+              </p>
+              <p className="text-2xl font-bold text-green-700">
+                ৳{summaryStats.totalRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-green-400 mt-1">
+                {summaryStats.label}
+              </p>
+            </div>
+
+            <div className={`p-3 rounded-xl border
+              ${summaryStats.totalProfit >= 0
+                ? "bg-emerald-50 border-emerald-100"
+                : "bg-red-50 border-red-100"}`}>
+              <p className={`text-xs font-bold
+                uppercase mb-1
+                ${summaryStats.totalProfit >= 0
+                  ? "text-emerald-600"
+                  : "text-red-600"}`}>
+                Net Profit
+              </p>
+              <p className={`text-2xl font-bold
+                ${summaryStats.totalProfit >= 0
+                  ? "text-emerald-700"
+                  : "text-red-700"}`}>
+                ৳{summaryStats.totalProfit.toFixed(2)}
+              </p>
+              <p className={`text-xs mt-1
+                ${summaryStats.totalProfit >= 0
+                  ? "text-emerald-400"
+                  : "text-red-400"}`}>
+                {summaryStats.label}
+              </p>
+            </div>
+
+            <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100">
+              <p className="text-xs text-yellow-600 font-bold uppercase mb-1">
+                Pending Orders
+              </p>
+              <p className="text-2xl font-bold text-yellow-700">
+                {summaryStats.pendingOrders}
+              </p>
+              <p className="text-xs text-yellow-400 mt-1">
+                {summaryStats.label}
+              </p>
+            </div>
+
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <p className="text-xs font-bold text-gray-500 uppercase w-full mb-1">
+              📅 Date Range
+            </p>
+            {["All", "Today", "Week", "Month"].map((range) => (
+              <button
+                key={range}
+                onClick={() => setDateRange(range)}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition border
+                ${dateRange === range
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                }`}
+              >
+                {range === "All" ? "All Time"
+                  : range === "Week" ? "This Week"
+                  : range === "Month" ? "This Month"
+                  : "Today"}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3 mt-3">
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                📅 From
+              </label>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => {
+                  setCustomFrom(e.target.value);
+                  setDateRange("All");
+                }}
+                className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                📅 To
+              </label>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => {
+                  setCustomTo(e.target.value);
+                  setDateRange("All");
+                }}
+                className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {(customFrom || customTo) && (
+              <button
+                onClick={() => {
+                  setCustomFrom("");
+                  setCustomTo("");
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold text-sm hover:bg-gray-200 transition"
+              >
+                ✕ Clear
+              </button>
+            )}
+
+            {customFrom && customTo && (
+              <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                📊 Custom range active
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                🔍 Search Orders
+              </label>
+              <input
+                type="text"
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search by customer, phone or product..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                📋 Filter by Status
+              </label>
+              <select
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="All">All Orders</option>
+                <option value="Pending">Pending</option>
+                <option value="Delivered">Delivered</option>
+                <option value="Returned">Returned</option>
+              </select>
+            </div>
+          </div>
+
+          {(searchText || statusFilter !== "All" || dateRange !== "All") && (
+            <p className="text-sm text-gray-500 mb-3">
+              Showing{" "}
+              <span className="font-bold text-gray-700">{filteredOrders.length}</span>{" "}
+              of{" "}
+              <span className="font-bold text-gray-700">{totalCount}</span>{" "}
+              total orders
+              {statusFilter !== "All" && (
+                <span className="ml-1">
+                  — Status:{" "}
+                  <span className="font-bold text-blue-600">{statusFilter}</span>
+                </span>
+              )}
+            </p>
+          )}
           
           {/* TABLE */}
           <div className="overflow-x-auto">
@@ -223,7 +710,7 @@ const OrderList = () => {
                 </tr>
               </thead>
               <tbody className="text-gray-600 text-sm">
-                {orders.map((order) => {
+                {filteredOrders.map((order) => {
                    const { trueProfit } = getStableProfit(order);
                    return (
                     <tr key={order.id} className="border-b border-gray-100 hover:bg-blue-50 transition">
@@ -290,6 +777,34 @@ const OrderList = () => {
                 })}
               </tbody>
             </table>
+          </div>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-500 mb-3">
+              Showing{" "}
+              <span className="font-bold text-gray-700">
+                {orders.length}
+              </span>{" "}
+              of{" "}
+              <span className="font-bold text-gray-700">
+                {totalCount}
+              </span>{" "}
+              orders
+            </p>
+            {hasMore && !searchText && statusFilter === "All" && dateRange === "All" && !customFrom && !customTo && (
+              <button
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2 mx-auto"
+              >
+                {isLoadingMore ? "Loading..." : "⬇️ Load More"}
+              </button>
+            )}
+            {loadMoreError && (
+              <p className="text-sm text-red-600 mt-2 font-semibold">
+                ⚠️ {loadMoreError}
+              </p>
+            )}
           </div>
 
           {/* RECEIPT MODAL */}

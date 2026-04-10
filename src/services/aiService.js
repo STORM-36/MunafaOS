@@ -634,3 +634,90 @@ export const parseProductFromImage = async (imageInput) => {
     return null;
   }
 };
+
+export const parseCustomerWithAI = 
+  async (rawText) => {
+  try {
+    let selectedModel = MODEL_PRIMARY;
+    try {
+      const models = await listAvailableModels();
+      const discovered = pickModelName(models);
+      if (discovered) {
+        selectedModel = discovered;
+      }
+    } catch (listError) {
+      console.warn(
+        "⚠️ Could not list models, using default.", 
+        listError
+      );
+    }
+    const model = genAI.getGenerativeModel({ 
+      model: selectedModel 
+    });
+
+    const prompt = `
+You are a data extraction assistant 
+for a Bangladesh e-commerce platform.
+
+Extract customer information from this 
+order message. The message may be in 
+Bengali, English, or Banglish (mixed).
+
+Labels to recognize:
+- Name labels: নাম, নাম:, Name:, 
+  Customer:, Customer name:, নামঃ
+- Phone labels: ফোন, মোবাইল, Phone:, 
+  Mobile:, Contact:, Number:
+- Address labels: ঠিকানা, ঠিকানাঃ, 
+  Address:, Delivery address:, বাসা
+
+Rules:
+- If no label found, first short line 
+  is likely the name
+- Phone is always 11 digits starting 
+  with 01 (convert Bengali digits first)
+- Everything else is the address
+- Return ONLY valid JSON, no explanation
+
+Message:
+"""
+${rawText}
+"""
+
+Return this exact JSON format:
+{
+  "name": "extracted name or empty string",
+  "phone": "extracted phone or empty string",
+  "address": "extracted address or empty string"
+}`;
+
+    const result = await 
+      model.generateContent(prompt);
+    const response = result.response
+      .text().trim();
+
+    const clean = response
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const parsed = JSON.parse(clean);
+    console.log("AI parsed result:", parsed);
+
+    return {
+      name: String(parsed.name || ""),
+      phone: String(parsed.phone || ""),
+      address: String(parsed.address || "")
+    };
+
+  } catch (error) {
+    console.error(
+      "AI customer parse error:", error
+    );
+    return { 
+      name: "", 
+      phone: "", 
+      address: "" 
+    };
+  }
+};

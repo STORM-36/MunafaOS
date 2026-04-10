@@ -76,6 +76,15 @@ const AddInventory = () => {
     return match || "Other";
   };
 
+  const isCriticalEmpty = (value) => {
+    if (typeof value === "string" && value.trim() === "") return true;
+    if (value === 0 || value === "0") return true;
+    const parsed = parseFloat(value);
+    return !Number.isNaN(parsed) && parsed === 0;
+  };
+
+  const isRecommendedEmpty = (value) => String(value ?? "").trim() === "";
+
   const handleMagicFill = async () => {
     if (!aiInput) return alert("Please paste some text first!");
 
@@ -311,11 +320,16 @@ const AddInventory = () => {
             <label className="text-xs font-bold text-gray-500 uppercase">Category</label>
             <input
               list="category-options"
-              className="w-full p-2 border rounded font-bold text-gray-700"
+              className={`w-full p-2 border rounded font-bold text-gray-700 ${isRecommendedEmpty(formData.category) ? "border-yellow-400" : ""}`}
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               placeholder="Select or type a category"
             />
+            {!formData.category && (
+              <p className="text-xs text-yellow-600 font-semibold mt-1">
+                ⚠️ Required for analytics
+              </p>
+            )}
             <datalist id="category-options">
               {CATEGORY_OPTIONS.map((option) => (
                 <option key={option} value={option} />
@@ -339,29 +353,44 @@ const AddInventory = () => {
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">SKU</label>
                 <input
-                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  className={`w-full p-2 border rounded font-bold text-gray-700 ${isRecommendedEmpty(formData.sku) ? "border-blue-300" : ""}`}
                   value={formData.sku}
                   onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   placeholder="SKU-123"
                 />
+                {!formData.sku && (
+                  <p className="text-xs text-blue-500 font-semibold mt-1">
+                    💡 Recommended for product tracking
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Batch Number</label>
                 <input
-                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  className={`w-full p-2 border rounded font-bold text-gray-700 ${isRecommendedEmpty(formData.batchNumber) ? "border-blue-300" : ""}`}
                   value={formData.batchNumber}
                   onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
                   placeholder="Batch-01"
                 />
+                {!formData.batchNumber && (
+                  <p className="text-xs text-blue-500 font-semibold mt-1">
+                    💡 Recommended for batch management
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Unit</label>
                 <input
-                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  className={`w-full p-2 border rounded font-bold text-gray-700 ${isRecommendedEmpty(formData.unit) ? "border-blue-300" : ""}`}
                   value={formData.unit}
                   onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   placeholder="pcs / box / kg"
                 />
+                {!formData.unit && (
+                  <p className="text-xs text-blue-500 font-semibold mt-1">
+                    💡 Recommended for stock clarity
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Expiry Date</label>
@@ -392,19 +421,29 @@ const AddInventory = () => {
                 <label className="text-xs font-bold text-gray-500 uppercase">Selling Price</label>
                 <input
                   type="number"
-                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  className={`w-full p-2 border rounded font-bold text-gray-700 ${isCriticalEmpty(formData.sellingPrice) ? "border-yellow-400" : ""}`}
                   value={formData.sellingPrice}
                   onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
                 />
+                {(!formData.sellingPrice || parseFloat(formData.sellingPrice) === 0) && (
+                  <p className="text-xs text-yellow-600 font-semibold mt-1">
+                    ⚠️ Required for profit calculation
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Packaging Cost (Per Unit)</label>
                 <input
                   type="number"
-                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  className={`w-full p-2 border rounded font-bold text-gray-700 ${isCriticalEmpty(packagingCost) ? "border-yellow-400" : ""}`}
                   value={packagingCost}
                   onChange={(e) => setPackagingCost(e.target.value)}
                 />
+                {(!packagingCost || parseFloat(packagingCost) === 0) && (
+                  <p className="text-xs text-yellow-600 font-semibold mt-1">
+                    ⚠️ Required for profit calculation
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Discount Price</label>
@@ -424,11 +463,16 @@ const AddInventory = () => {
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Supplier Name</label>
                 <input
-                  className="w-full p-2 border rounded font-bold text-gray-700"
+                  className={`w-full p-2 border rounded font-bold text-gray-700 ${isRecommendedEmpty(formData.supplier) ? "border-yellow-400" : ""}`}
                   value={formData.supplier}
                   onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
                   placeholder="Supplier name"
                 />
+                {(!formData.supplier || String(formData.supplier).trim() === "") && (
+                  <p className="text-xs text-yellow-600 font-semibold mt-1">
+                    ⚠️ Required for supplier tracking
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Supplier Phone</label>
