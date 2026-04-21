@@ -21,6 +21,7 @@ import { CATEGORY_OPTIONS } from "../utils/categories";
 import { useAuth } from "../context/AuthContext";
 import { logAudit } from "../utils/auditLogger";
 import { useNavigate } from "react-router-dom";
+import { Package, BarChart2, TrendingDown, TrendingUp, AlertTriangle, Search, Plus, Edit2, Trash2, Eye } from "lucide-react";
 
 const PAGE_SIZE = 50;
 
@@ -38,7 +39,14 @@ const InventoryList = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
   const [totalCount, setTotalCount] = useState(0);
+  const [totalItemsCount, setTotalItemsCount] = useState(0);
+  const [totalLowCritical, setTotalLowCritical] = useState(0);
+  const [totalOutOfStock, setTotalOutOfStock] = useState(0);
+  const [totalInventoryValue, setTotalInventoryValue] = useState(0);
+  const [lowStockItems, setLowStockItems] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lastVisibleDoc, setLastVisibleDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -58,28 +66,42 @@ const InventoryList = () => {
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!effectiveWorkspaceId) {
-      setTotalCount(0);
-      return;
-    }
-
-    const fetchTotalCount = async () => {
-      try {
-        const countQuery = query(
+  const fetchInventoryStats = async () => {
+    if (!effectiveWorkspaceId) return;
+    try {
+      const allItemsSnap = await getDocs(
+        query(
           collection(db, "inventory"),
           where("workspaceId", "==", effectiveWorkspaceId)
-        );
-        const snapshot = await getCountFromServer(countQuery);
-        setTotalCount(snapshot.data().count);
-      } catch (error) {
-        console.error("Error fetching total count:", error);
-        setTotalCount(0);
-      }
-    };
+        )
+      );
+      const docs = allItemsSnap.docs;
+      setTotalCount(docs.length);
+      const totalQty = docs.reduce((sum, d) => sum + (d.data().quantity || 0), 0);
+      const lowCritical = docs.filter((d) => {
+        const q = d.data().quantity || 0;
+        return q > 0 && q <= 5;
+      }).length;
+      const outOfStock = docs.filter((d) => (d.data().quantity || 0) === 0).length;
+      const inventoryValue = docs.reduce(
+        (sum, d) => sum + ((d.data().quantity || 0) * (d.data().buyingPrice || 0)), 0
+      );
+      const lowItems = docs
+        .filter((d) => (d.data().quantity || 0) <= 3)
+        .map((d) => ({ id: d.id, ...d.data() }));
+      setTotalItemsCount(totalQty);
+      setTotalLowCritical(lowCritical);
+      setTotalOutOfStock(outOfStock);
+      setTotalInventoryValue(inventoryValue);
+      setLowStockItems(lowItems);
+    } catch (error) {
+      console.error("Error fetching inventory stats:", error);
+    }
+  };
 
-    fetchTotalCount();
-  }, [effectiveWorkspaceId]);
+  useEffect(() => {
+    fetchInventoryStats();
+  }, [effectiveWorkspaceId, inventory.length, inventory]);
 
   const fetchPage = async (isInitialLoad = false) => {
     if (!effectiveWorkspaceId) {
@@ -179,6 +201,7 @@ const InventoryList = () => {
         setHasMore(snapshot.docs.length === PAGE_SIZE);
         setInitialFetchError("");
         setLoading(false);
+        fetchInventoryStats();
       },
       (error) => {
         console.error("Error subscribing to inventory:", error);
@@ -212,8 +235,36 @@ const InventoryList = () => {
       filtered = filtered.filter((item) => item.category === selectedCategory);
     }
 
+    if (statusFilter === "in_stock") {
+      filtered = filtered.filter((i) => (i.quantity || 0) > 7);
+    } else if (statusFilter === "low") {
+      filtered = filtered.filter((i) => (i.quantity || 0) > 3 && (i.quantity || 0) <= 7);
+    } else if (statusFilter === "critical") {
+      filtered = filtered.filter((i) => (i.quantity || 0) > 0 && (i.quantity || 0) <= 3);
+    } else if (statusFilter === "out") {
+      filtered = filtered.filter((i) => (i.quantity || 0) === 0);
+    }
+
+    if (sortBy === "price_asc") {
+      filtered.sort((a, b) => (a.sellingPrice || 0) - (b.sellingPrice || 0));
+    } else if (sortBy === "price_desc") {
+      filtered.sort((a, b) => (b.sellingPrice || 0) - (a.sellingPrice || 0));
+    } else if (sortBy === "stock_asc") {
+      filtered.sort((a, b) => (a.quantity || 0) - (b.quantity || 0));
+    } else if (sortBy === "stock_desc") {
+      filtered.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+    } else if (sortBy === "name_az") {
+      filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } else if (sortBy === "newest") {
+      filtered.sort((a, b) => {
+        const aTime = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+        const bTime = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+        return bTime - aTime;
+      });
+    }
+
     return filtered;
-  }, [inventory, searchText, selectedCategory]);
+  }, [inventory, searchText, selectedCategory, statusFilter, sortBy]);
 
   const handleAddStock = async () => {
     const qty = parseFloat(addStockQty);
@@ -345,16 +396,6 @@ const InventoryList = () => {
     setRetryKey((prev) => prev + 1);
   };
 
-  const totalItems = filteredInventory.reduce((sum, item) => {
-    return sum + (parseFloat(item.quantity) || 0);
-  }, 0);
-
-  const totalValue = filteredInventory.reduce((sum, item) => {
-    const price = parseFloat(item.buyingPrice) || 0;
-    const qty = parseFloat(item.quantity) || 0;
-    return sum + price * qty;
-  }, 0);
-
   const formatDate = (timestamp) => {
     if (!timestamp) return "-";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -477,165 +518,298 @@ const InventoryList = () => {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 max-w-6xl mx-auto mt-6">
-        <div className="border-b pb-4 mb-4">
-          <h2 className="text-xl font-bold text-gray-800">📋 Inventory List</h2>
-          <p className="text-xs text-gray-400">View and manage your stock items.</p>
-        </div>
-        <InventorySkeleton />
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 max-w-6xl mx-auto mt-6">
-      <div className="border-b pb-4 mb-4">
-        <h2 className="text-xl font-bold text-gray-800">📋 Inventory List</h2>
-        <p className="text-xs text-gray-400">View and manage your stock items.</p>
+    <div className="p-4 sm:p-6 space-y-5">
+
+      {/* ── KPI CARDS ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {[
+          {
+            label: "Total SKUs",
+            value: totalCount,
+            icon: Package,
+            bg: "bg-[#0F1F3D]/5",
+            iconColor: "text-[#0F1F3D]",
+          },
+          {
+            label: "Inventory Value",
+            value: `৳${totalInventoryValue.toLocaleString()}`,
+            icon: BarChart2,
+            bg: "bg-green-50",
+            iconColor: "text-green-600",
+          },
+          {
+            label: "Low / Critical",
+            value: totalLowCritical,
+            icon: TrendingDown,
+            bg: "bg-amber-50",
+            iconColor: "text-amber-600",
+          },
+          {
+            label: "Out of Stock",
+            value: totalOutOfStock,
+            icon: AlertTriangle,
+            bg: "bg-red-50",
+            iconColor: "text-red-500",
+          },
+          {
+            label: "Total Items",
+            value: totalItemsCount.toLocaleString(),
+            icon: TrendingUp,
+            bg: "bg-purple-50",
+            iconColor: "text-purple-600",
+          },
+        ].map((k) => (
+          <div key={k.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${k.bg}`}>
+              <k.icon size={16} className={k.iconColor} />
+            </div>
+            <p className="text-slate-900 text-lg font-bold">{k.value}</p>
+            <p className="text-slate-500 text-xs mt-0.5">{k.label}</p>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-          <p className="text-xs text-blue-600 font-bold uppercase mb-1">Total Items in Stock</p>
-          <p className="text-2xl font-bold text-blue-700">{totalItems.toFixed(0)}</p>
-        </div>
-        <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-          <p className="text-xs text-green-600 font-bold uppercase mb-1">Total Inventory Value</p>
-          <p className="text-2xl font-bold text-green-700">৳{totalValue.toFixed(2)}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">🔍 Search by Name or SKU</label>
-          <input
-            type="text"
-            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Type product name or SKU..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">📁 Filter by Category</label>
-          <select
-            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="">All Categories</option>
-            {CATEGORY_OPTIONS.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
+      {/* ── LOW STOCK ALERT BANNER ── */}
+      {lowStockItems.length > 0 && (
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={15} className="text-red-500" />
+            <span className="text-red-700 text-sm font-semibold">
+              {lowStockItems.length} items need immediate restocking
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {lowStockItems.slice(0, 8).map((a) => (
+              <button
+                key={a.id}
+                onClick={() => {
+                  setAddStockItemId(a.id);
+                  setAddStockQty("");
+                  setAddStockError("");
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-red-100 text-xs text-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all cursor-pointer group"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${(a.quantity || 0) === 0 ? "bg-slate-400" : "bg-red-500"}`} />
+                <span className="group-hover:font-semibold transition-all">{a.name}</span>
+                <span className="text-slate-400 group-hover:text-red-400">· {a.quantity || 0} left</span>
+                <span className="ml-1 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">+ Add Stock</span>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
-      </div>
+      )}
 
-      {filteredInventory.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          {inventory.length === 0 ? (
-            <>
-              <p className="text-lg font-semibold mb-2">📦 No inventory items yet</p>
-              <p className="text-sm">
-                {initialFetchError
-                  ? "Inventory is temporarily unavailable. Use refresh/retry after fixing connection or index."
-                  : "Add your first stock item using the form above."}
-              </p>
-              {initialFetchError && (
-                <button
-                  onClick={handleRetry}
-                  className="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition"
-                >
-                  Refresh Inventory
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-lg font-semibold mb-2">🔍 No results found</p>
-              <p className="text-sm">Try adjusting your search or filter.</p>
-            </>
-          )}
+      {/* ── TABLE CARD ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+
+        {/* Toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b border-slate-100">
+          <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100">
+            <Search size={14} className="text-slate-400" />
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search SKU or product name…"
+              className="bg-transparent text-sm text-slate-700 placeholder:text-slate-400 outline-none flex-1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/add-inventory")}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0F1F3D] text-white hover:bg-[#162d54] text-sm transition-colors"
+            >
+              <Plus size={14} />
+              <span>Add SKU</span>
+            </button>
+          </div>
         </div>
-      ) : (
-        <>
+
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/50">
+          <span className="text-xs text-slate-400 font-medium mr-1">Filter:</span>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 outline-none cursor-pointer hover:border-[#0F1F3D]/30 transition-colors"
+          >
+            <option value="All">All Status</option>
+            <option value="in_stock">In Stock</option>
+            <option value="low">Low Stock</option>
+            <option value="critical">Critical</option>
+            <option value="out">Out of Stock</option>
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 outline-none cursor-pointer hover:border-[#0F1F3D]/30 transition-colors"
+          >
+            <option value="newest">Newest First</option>
+            <option value="name_az">Name A → Z</option>
+            <option value="price_asc">Price: Low → High</option>
+            <option value="price_desc">Price: High → Low</option>
+            <option value="stock_asc">Stock: Low → High</option>
+            <option value="stock_desc">Stock: High → Low</option>
+          </select>
+
+          {(statusFilter !== "All" || sortBy !== "newest") && (
+            <button
+              onClick={() => { setStatusFilter("All"); setSortBy("newest"); }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+            >
+              Clear Filters
+            </button>
+          )}
+
+          <span className="ml-auto text-xs text-slate-400">
+            {filteredInventory.length} of {totalCount} products
+          </span>
+        </div>
+
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1 px-4 py-2.5 border-b border-slate-100 overflow-x-auto">
+          {["All", ...CATEGORY_OPTIONS].map((c) => (
+            <button
+              key={c}
+              onClick={() => setSelectedCategory(c === "All" ? "" : c)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs transition-all duration-150 ${
+                (c === "All" && !selectedCategory) || selectedCategory === c
+                  ? "bg-[#0F1F3D] text-white font-semibold"
+                  : "text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Table */}
+        {loading ? (
+          <InventorySkeleton />
+        ) : initialFetchError ? (
+          <div className="p-8 text-center text-red-500 text-sm">{initialFetchError}</div>
+        ) : filteredInventory.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">No inventory items found.</div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full">
               <thead>
-                <tr className="bg-slate-50 text-slate-600">
-                  <th className="text-left p-3 border-b font-bold">Date</th>
-                  <th className="text-left p-3 border-b font-bold">Product Name</th>
-                  <th className="text-left p-3 border-b font-bold">SKU</th>
-                  <th className="text-left p-3 border-b font-bold">Category</th>
-                  <th className="text-right p-3 border-b font-bold">Buying Price</th>
-                  <th className="text-right p-3 border-b font-bold">Qty</th>
-                  <th className="text-right p-3 border-b font-bold">Total Value</th>
-                  <th className="text-center p-3 border-b font-bold">Action</th>
+                <tr className="border-b border-slate-100">
+                  {["SL", "Product", "Category", "Stock", "Cost", "Selling Price", "Status", "Actions"].map((h) => (
+                    <th key={h} className="text-left text-xs text-slate-400 px-4 py-3 whitespace-nowrap font-medium">{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody>{tableRows}</tbody>
+              <tbody className="divide-y divide-slate-50">
+                {filteredInventory.map((item) => {
+                  const qty = item.quantity || 0;
+                  const isOut = qty === 0;
+                  const isCritical = qty > 0 && qty <= 3;
+                  const isLow = qty > 3 && qty <= 7;
+                  const isIncomplete = !item.sellingPrice || !item.supplier;
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`hover:bg-slate-50/50 transition-colors ${isCritical || isOut ? "bg-red-50/20" : ""}`}
+                    >
+                      <td className="px-4 py-3 text-xs text-slate-400 font-mono">
+                        {filteredInventory.indexOf(item) + 1}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-800 font-medium">{item.name}</span>
+                          {isIncomplete && (
+                            <span title="Missing selling price or supplier" className="text-amber-500 text-xs">⚠️</span>
+                          )}
+                        </div>
+                        {item.sku && <p className="text-[10px] text-[#0F1F3D]/60 font-mono mt-0.5">{item.sku}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{item.category || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm font-bold ${isOut ? "text-slate-400" : isCritical ? "text-red-600" : isLow ? "text-amber-600" : "text-slate-800"}`}>
+                          {qty}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">৳{(item.buyingPrice || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-xs text-slate-800 font-semibold">
+                        {item.sellingPrice ? `৳${item.sellingPrice.toLocaleString()}` : <span className="text-amber-500">Not set</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] w-fit font-medium ${
+                          isOut ? "bg-slate-100 text-slate-600" :
+                          isCritical ? "bg-red-50 text-red-700" :
+                          isLow ? "bg-amber-50 text-amber-700" :
+                          "bg-green-50 text-green-700"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            isOut ? "bg-slate-400" : isCritical ? "bg-red-500" : isLow ? "bg-amber-400" : "bg-green-400"
+                          }`} />
+                          {isOut ? "Out of Stock" : isCritical ? "Critical" : isLow ? "Low Stock" : "In Stock"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setDetailItem(item)}
+                            className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-500 transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={12} />
+                          </button>
+                          <button
+                            onClick={() => setAddStockItemId(item.id)}
+                            className="p-1.5 rounded-lg hover:bg-[#0F1F3D]/5 text-slate-400 hover:text-[#0F1F3D] transition-colors"
+                            title="Add Stock"
+                          >
+                            <Plus size={12} />
+                          </button>
+                          <button
+                            onClick={() => { navigate("/add-inventory", { state: { editItem: item } }); }}
+                            className="p-1.5 rounded-lg hover:bg-[#E8B84B]/10 text-slate-400 hover:text-[#E8B84B] transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          {userRole === "owner" && (
+                            <button
+                              onClick={() => handleDelete(item.id, item.name)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
+        )}
 
-          <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm">
-            <p className="text-gray-600">
-              Showing <span className="font-bold">{filteredInventory.length}</span> of{" "}
-              <span className="font-bold">{inventory.length}</span> items
-            </p>
-            <p className="text-gray-600">
-              Total Value: <span className="font-bold text-green-600">৳{totalValue.toFixed(2)}</span>
-            </p>
+        {/* Load More */}
+        {hasMore && !loading && (
+          <div className="flex justify-center py-4 border-t border-slate-100">
+            <button
+              onClick={() => fetchPage(false)}
+              disabled={isLoadingMore}
+              className="px-4 py-2 rounded-xl text-sm text-[#0F1F3D] border border-[#0F1F3D]/20 hover:bg-[#0F1F3D]/5 disabled:opacity-40 transition-colors"
+            >
+              {isLoadingMore ? "Loading…" : `Load More (${totalCount - inventory.length} remaining)`}
+            </button>
           </div>
+        )}
+        {loadMoreError && (
+          <p className="text-center text-xs text-red-500 py-2">{loadMoreError}</p>
+        )}
+      </div>
 
-          {!searchText && !selectedCategory && (
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500 mb-3">
-                Showing <span className="font-bold text-gray-700">{inventory.length}</span> of{" "}
-                <span className="font-bold text-gray-700">{totalCount}</span> total items
-              </p>
-              {hasMore && (
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isLoadingMore}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Loading...
-                    </>
-                  ) : (
-                    <>⬇️ Load More</>
-                  )}
-                </button>
-              )}
-
-              {!hasMore && hasTriedLoadMore && (
-                <p className="text-sm text-gray-500 mt-3">No more items to load.</p>
-              )}
-
-              {loadMoreError && (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                  <p className="text-sm text-red-700 font-medium">⚠️ {loadMoreError}</p>
-                  <button
-                    onClick={handleLoadMore}
-                    className="mt-2 bg-red-600 text-white px-3 py-1.5 rounded font-bold hover:bg-red-700 transition"
-                  >
-                    Retry Load More
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+      {/* ── MODALS (unchanged) ── */}
 
       {addStockItemId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -809,7 +983,7 @@ const InventoryList = () => {
           <div className="flex justify-between py-1.5 border-b border-gray-50 text-sm"><span className="text-gray-500">User Phone</span><span className="font-semibold text-gray-800">{detailItem?.userPhone || "—"}</span></div>
         </div>
 
-        <div className="border-t p-4 flex gap-3">
+        <div className="border-t p-4 pt-5 pb-6 flex gap-3">
           <button
             onClick={() => setDetailItem(null)}
             className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 font-bold"
