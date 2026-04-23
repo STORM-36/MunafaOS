@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '../firebase'; 
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
@@ -21,7 +21,10 @@ const OrderList = ({ onOpenNewOrder }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [cityFilter, setCityFilter] = useState("All");
+  const [channelFilter, setChannelFilter] = useState("All");
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
+  const filterChangedByUser = useRef(false);
 
 
 
@@ -94,8 +97,28 @@ const OrderList = ({ onOpenNewOrder }) => {
       });
     }
 
+    if (cityFilter !== "All") {
+      result = result.filter(order =>
+        (order.city || "Other") === cityFilter
+      );
+    }
+
+    if (channelFilter !== "All") {
+      result = result.filter(order =>
+        (order.channel || "") === channelFilter
+      );
+    }
+
     return result;
-  }, [allOrders, statusFilter, searchText, dateRange, customFrom, customTo]);
+  }, [allOrders, statusFilter, searchText, dateRange, customFrom, customTo, cityFilter, channelFilter]);
+
+  const availableCities = useMemo(() => {
+    const cities = allOrders
+      .map(o => o.city || null)
+      .filter(Boolean)
+      .filter(c => c !== "Other" && c !== "");
+    return ["All", ...Array.from(new Set(cities)).sort()];
+  }, [allOrders]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
@@ -106,8 +129,9 @@ const OrderList = ({ onOpenNewOrder }) => {
 
   // Reset to page 1 when filters change
   useEffect(() => {
+    filterChangedByUser.current = true;
     setCurrentPage(1);
-  }, [statusFilter, searchText, dateRange, customFrom, customTo]);
+  }, [statusFilter, searchText, dateRange, customFrom, customTo, cityFilter, channelFilter]);
 
   const summaryStats = useMemo(() => {
     const isFiltered =
@@ -179,7 +203,12 @@ const OrderList = ({ onOpenNewOrder }) => {
         const ordersData = snapshot.docs.map(
           doc => ({ id: doc.id, ...doc.data() })
         );
-        setAllOrders(ordersData);
+        if (!filterChangedByUser.current) {
+          setAllOrders(ordersData);
+        } else {
+          filterChangedByUser.current = false;
+          setAllOrders(ordersData);
+        }
         setLoading(false);
       },
       (error) => {
@@ -255,8 +284,18 @@ const OrderList = ({ onOpenNewOrder }) => {
     const totalAdSpend = Number(order.totalAdSpend ?? (Number(order.adCost || 0) * qty));
     const totalDelivery = Number(order.totalDelivery ?? order.deliveryCost ?? 0);
     const totalDiscount = Number(order.totalDiscount ?? (Number(order.unitDiscount ?? order.discountPrice ?? 0) * qty));
-    const totalDeductions = Number(order.totalDeductions ?? (totalProductCost + totalPackaging + totalAdSpend + totalDelivery));
-    const trueProfit = Number(order.trueNetProfit ?? order.finalProfit ?? order.netProfit ?? (grossRevenue - totalDeductions));
+    const codCharge = Number(order.codCharge || 0);
+    const paymentFee = Number(order.paymentFee || 0);
+
+    // Delivery is only deducted if seller offered free delivery
+    // For old orders without freeDelivery field: treat as false (customer paid delivery)
+    const freeDelivery = order.freeDelivery === true;
+    const sellerDeliveryCost = freeDelivery ? totalDelivery : 0;
+
+    // Always recalculate from components — never use saved totalDeductions
+    // This ensures old orders are corrected too
+    const totalDeductions = totalProductCost + totalPackaging + totalAdSpend + sellerDeliveryCost + codCharge + paymentFee;
+    const trueProfit = grossRevenue - totalDeductions;
 
     const unitCost = Number(order.unitCost ?? (qty > 0 ? totalProductCost / qty : 0));
     const unitSellingPrice = Number(order.unitSellingPrice ?? (qty > 0 ? (grossRevenue + totalDiscount) / qty : 0));
@@ -271,12 +310,16 @@ const OrderList = ({ onOpenNewOrder }) => {
       totalPackaging,
       totalAdSpend,
       totalDelivery,
+      sellerDeliveryCost,
+      codCharge,
+      paymentFee,
       totalDeductions,
       trueProfit,
       unitCost,
       unitSellingPrice,
       unitDiscount,
-      unitPackaging
+      unitPackaging,
+      freeDelivery
     };
   };
 
@@ -315,6 +358,8 @@ const OrderList = ({ onOpenNewOrder }) => {
         Qty: qty,
         Phone: order.phone,
         Address: order.address,
+        City: order.city || '—',
+        Channel: order.channel || '—',
         Category: order.category || "",
         Subcategory: order.subcategory || "",
         SKU: order.sku || "",
@@ -514,75 +559,140 @@ const OrderList = ({ onOpenNewOrder }) => {
             background: '#EBF1FF',
             border: '1px solid #B8CEEE',
             borderRadius: '10px',
-            padding: '14px 16px',
+            padding: '16px',
             marginBottom: '14px',
             marginTop: '12px',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            gap: '12px'
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
           }}>
+
+            {/* ROW 1 — Date Range */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '9px', fontWeight: 700, color: '#2E5BA8',
+                  letterSpacing: '.8px', textTransform: 'uppercase',
+                  display: 'block', marginBottom: '4px'
+                }}>From Date</label>
+                <input type="date"
+                  value={customFrom}
+                  onChange={(e) => {
+                    setCustomFrom(e.target.value);
+                    setDateRange("All");
+                    setCurrentPage(1);
+                  }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px',
+                    border: '1px solid rgba(15,31,61,0.09)', fontSize: '12px', outline: 'none'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '9px', fontWeight: 700, color: '#2E5BA8',
+                  letterSpacing: '.8px', textTransform: 'uppercase',
+                  display: 'block', marginBottom: '4px'
+                }}>To Date</label>
+                <input type="date"
+                  value={customTo}
+                  onChange={(e) => {
+                    setCustomTo(e.target.value);
+                    setDateRange("All");
+                    setCurrentPage(1);
+                  }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px',
+                    border: '1px solid rgba(15,31,61,0.09)', fontSize: '12px', outline: 'none'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setCustomFrom("");
+                    setCustomTo("");
+                    setCityFilter("All");
+                    setChannelFilter("All");
+                    setCurrentPage(1);
+                    setShowFilters(false);
+                  }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '7px',
+                    border: '1px solid rgba(15,31,61,0.09)', background: '#fff',
+                    fontSize: '12px', fontWeight: 600, color: '#4A6080', cursor: 'pointer'
+                  }}
+                >
+                  ✕ Clear All Filters
+                </button>
+              </div>
+            </div>
+
+            {/* ROW 2 — City Filter */}
             <div>
-              <label style={{ fontSize: '9px',
-                fontWeight: 700, color: '#2E5BA8',
-                letterSpacing: '.8px',
-                textTransform: 'uppercase',
-                display: 'block', marginBottom: '4px'
-              }}>From Date</label>
-              <input type="date"
-                value={customFrom}
-                onChange={(e) => {
-                  setCustomFrom(e.target.value);
-                  setDateRange("All");
-                  setCurrentPage(1);
-                }}
-                style={{ width: '100%', padding: '8px 10px',
-                  borderRadius: '7px',
-                  border: '1px solid rgba(15,31,61,0.09)',
-                  fontSize: '12px', outline: 'none'
-                }}
-              />
+              <label style={{ fontSize: '9px', fontWeight: 700, color: '#2E5BA8',
+                letterSpacing: '.8px', textTransform: 'uppercase',
+                display: 'block', marginBottom: '8px'
+              }}>Filter by City</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {availableCities.map((city) => (
+                  <button
+                    key={city}
+                    onClick={() => { setCityFilter(city); setCurrentPage(1); }}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: cityFilter === city
+                        ? '1.5px solid #2E5BA8'
+                        : '1.5px solid rgba(15,31,61,0.12)',
+                      background: cityFilter === city ? '#2E5BA8' : '#fff',
+                      color: cityFilter === city ? '#fff' : '#4A6080',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* ROW 3 — Channel Filter */}
             <div>
-              <label style={{ fontSize: '9px',
-                fontWeight: 700, color: '#2E5BA8',
-                letterSpacing: '.8px',
-                textTransform: 'uppercase',
-                display: 'block', marginBottom: '4px'
-              }}>To Date</label>
-              <input type="date"
-                value={customTo}
-                onChange={(e) => {
-                  setCustomTo(e.target.value);
-                  setDateRange("All");
-                  setCurrentPage(1);
-                }}
-                style={{ width: '100%', padding: '8px 10px',
-                  borderRadius: '7px',
-                  border: '1px solid rgba(15,31,61,0.09)',
-                  fontSize: '12px', outline: 'none'
-                }}
-              />
+              <label style={{ fontSize: '9px', fontWeight: 700, color: '#2E5BA8',
+                letterSpacing: '.8px', textTransform: 'uppercase',
+                display: 'block', marginBottom: '8px'
+              }}>Filter by Channel</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {[
+                  { key: 'All',       label: 'All',     bg: '#0F1F3D', color: '#fff'     },
+                  { key: 'Facebook',  label: 'FB',      bg: '#1877F2', color: '#fff'     },
+                  { key: 'WhatsApp',  label: 'WA',      bg: '#1A9E6A', color: '#fff'     },
+                  { key: 'Instagram', label: 'IG',      bg: '#C13584', color: '#fff'     },
+                  { key: 'Phone',     label: 'Call',    bg: '#4A6080', color: '#fff'     },
+                  { key: 'Walk-in',   label: 'Walk-in', bg: '#0D7A4E', color: '#fff'     },
+                  { key: 'Other',     label: 'Other',   bg: '#6D7690', color: '#fff'     },
+                ].map((ch) => (
+                  <button
+                    key={ch.key}
+                    onClick={() => { setChannelFilter(ch.key); setCurrentPage(1); }}
+                    style={{
+                      padding: '4px 14px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: channelFilter === ch.key
+                        ? `1.5px solid ${ch.bg}`
+                        : '1.5px solid rgba(15,31,61,0.12)',
+                      background: channelFilter === ch.key ? ch.bg : '#fff',
+                      color: channelFilter === ch.key ? ch.color : '#4A6080',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {ch.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'flex',
-              alignItems: 'flex-end' }}>
-              <button
-                onClick={() => {
-                  setCustomFrom("");
-                  setCustomTo("");
-                  setCurrentPage(1);
-                  setShowFilters(false);
-                }}
-                style={{ width: '100%', padding: '8px',
-                  borderRadius: '7px',
-                  border: '1px solid rgba(15,31,61,0.09)',
-                  background: '#fff', fontSize: '12px',
-                  fontWeight: 600, color: '#4A6080',
-                  cursor: 'pointer'
-                }}
-              >
-                ✕ Clear Filters
-              </button>
-            </div>
+
           </div>
         )}
 
@@ -598,6 +708,8 @@ const OrderList = ({ onOpenNewOrder }) => {
                 <th className="py-3 px-3">Date & Time</th>
                 <th className="py-3 px-3">Customer</th>
                 <th className="py-3 px-3">Product</th>
+                <th className="py-3 px-3">City</th>
+                <th className="py-3 px-3">Channel</th>
                 <th className="py-3 px-3 text-center">Qty</th>
                 <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-3 text-center">Net Profit</th>
@@ -629,6 +741,43 @@ const OrderList = ({ onOpenNewOrder }) => {
                       <span className="inline-flex items-center rounded-lg border border-[rgba(15,31,61,0.09)] bg-[#F6F8FC] px-2 py-1 text-[10px] font-semibold text-[#0F1F3D]">
                         {order.productName || order.category || 'Product'}
                       </span>
+                    </td>
+
+                    <td className="py-3 px-3">
+                      <span className="inline-flex items-center rounded-lg bg-[#EBF1FF] px-2 py-1 text-[10px] font-semibold text-[#2E5BA8]">
+                        {order.city || '—'}
+                      </span>
+                    </td>
+
+                    <td className="py-3 px-3">
+                      {(() => {
+                        const channelStyles = {
+                          'Facebook':  { bg: '#E7F0FD', color: '#1877F2', label: 'FB' },
+                          'WhatsApp':  { bg: '#E6F9EE', color: '#1A9E6A', label: 'WA' },
+                          'Instagram': { bg: '#FCE8F6', color: '#C13584', label: 'IG' },
+                          'Phone':     { bg: '#F0F4FF', color: '#4A6080', label: 'Call' },
+                          'Walk-in':   { bg: '#E6F7EF', color: '#0D7A4E', label: 'Walk-in' },
+                          'Other':     { bg: '#F6F8FC', color: '#6D7690', label: 'Other' },
+                        };
+                        const ch = order.channel;
+                        const style = channelStyles[ch] || null;
+                        if (!style) return <span className="text-[10px] text-[#6D7690]">—</span>;
+                        return (
+                          <span style={{
+                            background: style.bg,
+                            color: style.color,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            borderRadius: '6px',
+                            padding: '2px 8px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            letterSpacing: '0.5px'
+                          }}>
+                            {style.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-3 text-center font-semibold text-[#0F1F3D]">{qty}</td>
                     <td className="py-3 px-3 text-center">
@@ -738,14 +887,19 @@ const OrderList = ({ onOpenNewOrder }) => {
                       : 'Product',
                     price: parseFloat(receiptOrder.productCost) || 0
                   }],
-                  sellingPrice: parseFloat(receiptOrder.sellingPrice) || 0,
-                  discountPrice: parseFloat(receiptOrder.discountPrice) || 0,
+                  unitSellingPrice: parseFloat(receiptOrder.unitSellingPrice) || 0,
+                  qty: Number(receiptOrder.qty || receiptOrder.quantity || 1),
+                  grossRevenue: parseFloat(receiptOrder.grossRevenue || receiptOrder.totalRevenue || receiptOrder.sellingPrice) || 0,
+                  totalDiscount: parseFloat(receiptOrder.totalDiscount || receiptOrder.discountPrice) || 0,
+                  sellingPrice: parseFloat(receiptOrder.grossRevenue || receiptOrder.totalRevenue || receiptOrder.sellingPrice) || 0,
+                  discountPrice: parseFloat(receiptOrder.totalDiscount || receiptOrder.discountPrice) || 0,
+                  freeDelivery: receiptOrder.freeDelivery === true,
                   category: receiptOrder.category || "",
                   subcategory: receiptOrder.subcategory || "",
                   sku: receiptOrder.sku || "",
-                  totalPrice: parseFloat(receiptOrder.sellingPrice) || 0,
+                  totalPrice: parseFloat(receiptOrder.grossRevenue || receiptOrder.sellingPrice) || 0,
                   date: receiptOrder.timestamp?.toDate().toLocaleDateString('en-GB') || new Date().toLocaleDateString('en-GB'),
-                  deliveryCost: receiptOrder.deliveryCost,
+                  deliveryCost: parseFloat(receiptOrder.deliveryCost) || 0,
                   adCost: receiptOrder.adCost,
                   netProfit: getStableProfit(receiptOrder).trueProfit
                 }} />
@@ -792,10 +946,19 @@ const OrderList = ({ onOpenNewOrder }) => {
                         <span>📦 Product Cost</span>
                         <span>- {selectedOrderProfit?.totalProductCost || 0}</span>
                       </div>
-                      <div className="flex justify-between text-red-500">
-                        <span>🚚 Delivery</span>
-                        <span>- {selectedOrderProfit?.totalDelivery || 0}</span>
-                      </div>
+
+                      {selectedOrderProfit?.freeDelivery ? (
+                        <div className="flex justify-between text-red-500">
+                          <span>🚚 Delivery (Seller Paid)</span>
+                          <span>- {selectedOrderProfit?.totalDelivery || 0}</span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between text-gray-400">
+                          <span>🚚 Delivery (Customer Paid)</span>
+                          <span className="text-xs">Not deducted</span>
+                        </div>
+                      )}
+
                       <div className="flex justify-between text-blue-600 font-bold bg-blue-100 p-1 rounded">
                         <span>📢 Ad Spend</span>
                         <span>- {selectedOrderProfit?.totalAdSpend || 0}</span>
@@ -804,6 +967,20 @@ const OrderList = ({ onOpenNewOrder }) => {
                         <span>🏷️ Packaging</span>
                         <span>- {selectedOrderProfit?.totalPackaging || 0}</span>
                       </div>
+
+                      {Number(selectedOrderProfit?.codCharge || 0) > 0 && (
+                        <div className="flex justify-between text-purple-600 font-medium">
+                          <span>🏦 COD Charge</span>
+                          <span>- {selectedOrderProfit?.codCharge || 0}</span>
+                        </div>
+                      )}
+
+                      {Number(selectedOrderProfit?.paymentFee || 0) > 0 && (
+                        <div className="flex justify-between text-pink-600 font-medium">
+                          <span>💳 Payment Fee</span>
+                          <span>- {selectedOrderProfit?.paymentFee || 0}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-between pt-2 font-bold text-gray-800">
                       <span>Total Deductions</span>

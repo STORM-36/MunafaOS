@@ -48,6 +48,46 @@ const normalizeCategory = (value) => {
   return match || 'Other';
 };
 
+const BD_CITIES_MAP = {
+  'dhaka': 'Dhaka', 'ঢাকা': 'Dhaka',
+  'mirpur': 'Dhaka', 'uttara': 'Dhaka', 'dhanmondi': 'Dhaka',
+  'gulshan': 'Dhaka', 'banani': 'Dhaka', 'mohammadpur': 'Dhaka',
+  'badda': 'Dhaka', 'jatrabari': 'Dhaka', 'rampura': 'Dhaka',
+  'bashundhara': 'Dhaka', 'motijheel': 'Dhaka', 'farmgate': 'Dhaka',
+  'keraniganj': 'Dhaka', 'savar': 'Dhaka', 'tongi': 'Gazipur',
+  'chittagong': 'Chittagong', 'chattogram': 'Chittagong', 'চট্টগ্রাম': 'Chittagong',
+  'sylhet': 'Sylhet', 'সিলেট': 'Sylhet',
+  'rajshahi': 'Rajshahi', 'রাজশাহী': 'Rajshahi',
+  'khulna': 'Khulna', 'খুলনা': 'Khulna',
+  'comilla': 'Comilla', 'cumilla': 'Comilla', 'কুমিল্লা': 'Comilla',
+  'barishal': 'Barisal', 'barisal': 'Barisal', 'বরিশাল': 'Barisal',
+  'mymensingh': 'Mymensingh', 'ময়মনসিংহ': 'Mymensingh',
+  'gazipur': 'Gazipur', 'গাজীপুর': 'Gazipur',
+  'narayanganj': 'Narayanganj', 'নারায়ণগঞ্জ': 'Narayanganj',
+  'rangpur': 'Rangpur', 'রংপুর': 'Rangpur',
+  'bogra': 'Bogra', 'bogura': 'Bogra',
+  'jessore': 'Jessore', 'jashore': 'Jessore',
+  'feni': 'Feni', 'noakhali': 'Noakhali',
+  'tangail': 'Tangail', 'faridpur': 'Faridpur',
+  'cox': "Cox's Bazar", 'coxsbazar': "Cox's Bazar",
+  'dinajpur': 'Dinajpur', 'pabna': 'Pabna',
+  'sirajganj': 'Sirajganj', 'brahmanbaria': 'Brahmanbaria',
+  'habiganj': 'Habiganj', 'sunamganj': 'Sunamganj',
+  'moulvibazar': 'Moulvibazar', 'chandpur': 'Chandpur',
+  'lakshmipur': 'Lakshmipur', 'bhola': 'Bhola',
+  'kushtia': 'Kushtia', 'satkhira': 'Satkhira',
+  'manikganj': 'Manikganj', 'narsingdi': 'Narsingdi',
+};
+
+const extractCity = (address) => {
+  if (!address) return '';
+  const lower = address.toLowerCase();
+  for (const key of Object.keys(BD_CITIES_MAP)) {
+    if (lower.includes(key)) return BD_CITIES_MAP[key];
+  }
+  return 'Other';
+};
+
 const SmartForm = () => {
   const { currentUser, workspaceId } = useAuth();
   const [inputText, setInputText] = useState('');
@@ -70,7 +110,12 @@ const SmartForm = () => {
     sku: '',
 
     addedBy: '',
-    userPhone: ''
+    userPhone: '',
+    city: '',
+    channel: 'Facebook',
+    freeDelivery: false,
+    codCharge: 0,
+    paymentFee: 0,
   });
 
 // ⚡ SMART DETECTION LOGIC
@@ -117,7 +162,8 @@ const SmartForm = () => {
       phone: result.phone || prev.phone,
       name: result.name || prev.name,
       address: result.address || prev.address,
-      deliveryCost: autoDelivery
+      deliveryCost: autoDelivery,
+      city: extractCity(result.address || '') || prev.city,
     }));
   }, [inputText]);
 
@@ -246,8 +292,12 @@ const SmartForm = () => {
     const totalDelivery = flatDelivery;
 
     const grossRevenue = (Number(selectedItem?.sellingPrice || 0) * qty) - totalDiscount;
-    // --- THE NEW AUTOPSY MATH ---
-    const totalDeductions = totalProductCost + totalPackaging + flatAdSpend + flatDelivery;
+    // Delivery is only a seller cost when free delivery is offered
+    // If customer pays delivery, it is neutral — not deducted from profit
+    const sellerDeliveryCost = manualData.freeDelivery ? flatDelivery : 0;
+    const safeCodCharge = Number(manualData.codCharge || 0);
+    const safePaymentFee = Number(manualData.paymentFee || 0);
+    const totalDeductions = totalProductCost + totalPackaging + flatAdSpend + sellerDeliveryCost + safeCodCharge + safePaymentFee;
     const trueNetProfit = grossRevenue - totalDeductions;
 
     if (!grossRevenue || grossRevenue <= 0) {
@@ -303,6 +353,12 @@ const SmartForm = () => {
         totalExpenses: sanitizeNumber(totalDeductions || 0),
         finalProfit: Number(trueNetProfit || 0),
         netProfit: trueNetProfit,
+        city: sanitizeInput(manualData.city || ''),
+        channel: sanitizeInput(manualData.channel || 'Facebook'),
+        freeDelivery: manualData.freeDelivery === true,
+        codCharge: sanitizeNumber(Number(manualData.codCharge || 0)),
+        paymentFee: sanitizeNumber(Number(manualData.paymentFee || 0)),
+        sellerDeliveryCost: sanitizeNumber(manualData.freeDelivery ? flatDelivery : 0),
         timestamp: serverTimestamp()
       });
 
@@ -353,7 +409,12 @@ const SmartForm = () => {
         quantity: '1', sellingPrice: '', inventoryUnitCost: 0,
         deliveryCost: 120,
         category: '', productName: '', inventoryId: '', subcategory: '', sku: '',
-        addedBy: '', userPhone: ''
+        addedBy: '', userPhone: '',
+        city: '',
+        channel: 'Facebook',
+        freeDelivery: false,
+        codCharge: 0,
+        paymentFee: 0,
       });
     } catch (error) {
       console.error("Error saving:", error);
@@ -544,6 +605,58 @@ const SmartForm = () => {
                     className="w-full p-2 border border-green-400 rounded font-bold text-green-700 bg-white"
                 />
             </div>
+
+              <div className="md:col-span-2 flex items-center justify-between bg-white border rounded-lg p-3">
+                <div>
+                  <p className="text-xs font-bold text-gray-700">Free Delivery</p>
+                  <p className="text-[10px] text-gray-400">Toggle ON if seller absorbs delivery cost</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setManualData(prev => ({ ...prev, freeDelivery: !prev.freeDelivery }))}
+                  className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${
+                    manualData.freeDelivery ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                    manualData.freeDelivery ? 'translate-x-6' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {manualData.freeDelivery && (
+                <div className="md:col-span-2 bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 font-semibold">
+                  ✅ Free Delivery ON — delivery cost ৳{manualData.deliveryCost} will be deducted from your profit
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs text-gray-500">COD Charge (Courier Fee)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={manualData.codCharge}
+                  onChange={(e) => setManualData({ ...manualData, codCharge: e.target.value })}
+                  className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                  placeholder="e.g. 40"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">Pathao/Steadfast COD collection fee</p>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500">Payment Fee (bKash/Nagad)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={manualData.paymentFee}
+                  onChange={(e) => setManualData({ ...manualData, paymentFee: e.target.value })}
+                  className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                  placeholder="e.g. 8"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">Mobile banking transaction fee</p>
+              </div>
         </div>
       </div>
 
@@ -571,10 +684,47 @@ const SmartForm = () => {
               placeholder="Your phone"
             />
           </div>
+
+          <div>
+            <label className="block text-xs text-gray-500">Order Channel</label>
+            <select
+              value={manualData.channel}
+              onChange={(e) => setManualData({ ...manualData, channel: e.target.value })}
+              className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+            >
+              <option value="Facebook">📘 Facebook</option>
+              <option value="WhatsApp">💬 WhatsApp</option>
+              <option value="Instagram">📷 Instagram</option>
+              <option value="Phone">📞 Phone</option>
+              <option value="Walk-in">🚶 Walk-in</option>
+              <option value="Other">🔗 Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 flex items-center gap-1">
+              City (Auto-detected)
+              {manualData.city === 'Other' || manualData.city === ''
+                ? <span className="text-yellow-600 font-bold">⚠️ Please verify</span>
+                : <span className="text-green-600 font-bold">✓</span>
+              }
+            </label>
+            <input
+              type="text"
+              value={manualData.city}
+              onChange={(e) => setManualData({ ...manualData, city: e.target.value })}
+              className={`w-full p-2 border rounded font-bold text-gray-700 ${
+                manualData.city === 'Other' || manualData.city === ''
+                  ? 'border-yellow-400 bg-yellow-50'
+                  : 'border-green-400 bg-green-50'
+              }`}
+              placeholder="Auto-detected — edit if wrong"
+            />
+          </div>
         </div>
       </div>
 
-      <button 
+      <button
         onClick={handleSave}
         className="w-full mt-4 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all"
       >
