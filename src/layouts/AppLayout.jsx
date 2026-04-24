@@ -9,6 +9,8 @@ const AppLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
   const [inventoryCount, setInventoryCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [showNotif, setShowNotif] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,19 +44,35 @@ const AppLayout = () => {
 
     const unsubscribeOrders = onSnapshot(
       ordersQuery,
-      (snapshot) => setOrderCount(snapshot.size),
+      (snapshot) => {
+        setOrderCount(snapshot.size);
+        const pending = snapshot.docs.filter(d => {
+          const status = d.data().status;
+          return !status || status === 'Pending';
+        }).length;
+        setPendingCount(pending);
+      },
       (error) => {
         console.error('Realtime orders listener failed:', error);
         setOrderCount(0);
+        setPendingCount(0);
       }
     );
 
     const unsubscribeInventory = onSnapshot(
       inventoryQuery,
-      (snapshot) => setInventoryCount(snapshot.size),
+      (snapshot) => {
+        setInventoryCount(snapshot.size);
+        const lowStock = snapshot.docs.filter(d => {
+          const qty = d.data().quantity || 0;
+          return qty <= 3;
+        }).length;
+        setLowStockCount(lowStock);
+      },
       (error) => {
         console.error('Realtime inventory listener failed:', error);
         setInventoryCount(0);
+        setLowStockCount(0);
       }
     );
 
@@ -143,10 +161,6 @@ const AppLayout = () => {
 
             <p className="text-[9px] text-[#6D7690] font-bold tracking-[1.2px] mt-6 mb-2 uppercase">AI Tools</p>
             <nav className="space-y-1">
-              <NavLink to="/add-inventory" onClick={closeMobileMenu} className={navItemClass}>
-                <span>Add Inventory</span>
-                <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-2 py-0.5 rounded-full">AI</span>
-              </NavLink>
               <NavLink to="/bulk-import" onClick={closeMobileMenu} className={navItemClass}>
                 <span>Bulk Import</span>
                 <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-2 py-0.5 rounded-full">AI</span>
@@ -200,10 +214,15 @@ const AppLayout = () => {
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-[#EEF0FF] text-[#5B4FCF] flex items-center justify-center text-sm font-bold shrink-0">
-                  {(currentUser?.shopName || 'Shop Admin').charAt(0).toUpperCase()}
+                  {(currentUser?.displayName || currentUser?.firstName || currentUser?.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#0F1F3D] truncate">{currentUser?.shopName || 'Shop Admin'}</p>
+                  <p className="text-sm font-semibold text-[#0F1F3D] truncate">
+                    {currentUser?.displayName ||
+                     ((currentUser?.firstName || '') + ' ' + (currentUser?.lastName || '')).trim() ||
+                     currentUser?.email?.split('@')[0] ||
+                     'User'}
+                  </p>
                   <p className="text-xs text-[#6D7690] truncate">{currentUser?.email}</p>
                 </div>
               </div>
@@ -245,53 +264,137 @@ const AppLayout = () => {
                 aria-label="Notifications"
               >
                 🔔
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#D94040]" />
+                {(pendingCount > 0 || lowStockCount > 0) && (
+                  <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-[#D94040] text-white text-[9px] font-bold flex items-center justify-center">
+                    {pendingCount + lowStockCount > 9 ? '9+' : pendingCount + lowStockCount}
+                  </span>
+                )}
               </button>
 
               {showNotif && (
                 <div id="notif-dropdown" style={{
-                  position: 'absolute', right: '100px',
-                  top: '58px', width: '300px',
+                  position: 'absolute', right: '0px',
+                  top: '58px', width: '320px',
                   background: '#fff',
                   border: '1px solid rgba(15,31,61,0.09)',
-                  borderRadius: '12px', zIndex: 100,
-                  boxShadow: '0 8px 24px rgba(15,31,61,0.12)'
+                  borderRadius: '14px', zIndex: 100,
+                  boxShadow: '0 8px 32px rgba(15,31,61,0.15)',
+                  overflow: 'hidden'
                 }}>
-                  <div style={{ padding: '12px 16px',
+                  {/* Header */}
+                  <div style={{
+                    padding: '14px 16px',
                     borderBottom: '1px solid rgba(15,31,61,0.09)',
-                    fontSize: '12px', fontWeight: 700,
-                    color: '#0F1F3D'
-                  }}>Notifications</div>
-                  <div style={{ padding: '10px 16px',
-                    fontSize: '11px', color: '#4A6080',
-                    borderBottom: '1px solid rgba(15,31,61,0.09)'
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: '#0F1F3D'
                   }}>
-                    <div style={{ fontWeight: 700,
-                      color: '#0F1F3D', marginBottom: '2px'
-                    }}>48 orders pending delivery</div>
-                    <div style={{ color: '#8BA0BC' }}>
-                      Needs your attention
-                    </div>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
+                      Notifications
+                    </span>
+                    <span style={{
+                      fontSize: '10px', fontWeight: 700,
+                      background: '#E8B84B', color: '#0F1F3D',
+                      padding: '2px 8px', borderRadius: '20px'
+                    }}>
+                      {pendingCount + lowStockCount} alerts
+                    </span>
                   </div>
-                  <div style={{ padding: '10px 16px',
-                    fontSize: '11px', color: '#4A6080',
-                    borderBottom: '1px solid rgba(15,31,61,0.09)'
-                  }}>
-                    <div style={{ fontWeight: 700,
-                      color: '#0F1F3D', marginBottom: '2px'
-                    }}>7 items low on stock</div>
-                    <div style={{ color: '#8BA0BC' }}>
-                      Restock soon
+
+                  {/* Pending Orders Alert */}
+                  {pendingCount > 0 && (
+                    <div
+                      onClick={() => { setShowNotif(false); navigate('/orders'); }}
+                      style={{
+                        padding: '12px 16px', cursor: 'pointer',
+                        borderBottom: '1px solid rgba(15,31,61,0.06)',
+                        display: 'flex', alignItems: 'flex-start', gap: '10px',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F6F8FC'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '8px',
+                        background: '#FFF8E6', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        fontSize: '14px', flexShrink: 0
+                      }}>⏳</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#0F1F3D', marginBottom: '2px' }}>
+                          {pendingCount} Pending Orders
+                        </p>
+                        <p style={{ fontSize: '11px', color: '#6D7690' }}>
+                          Tap to view and update order status
+                        </p>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#9A6F00', fontWeight: 700,
+                        background: '#FFF8E6', padding: '2px 6px', borderRadius: '6px' }}>
+                        ACTION
+                      </span>
                     </div>
+                  )}
+
+                  {/* Low Stock Alert */}
+                  {lowStockCount > 0 && (
+                    <div
+                      onClick={() => { setShowNotif(false); navigate('/inventory-list'); }}
+                      style={{
+                        padding: '12px 16px', cursor: 'pointer',
+                        borderBottom: '1px solid rgba(15,31,61,0.06)',
+                        display: 'flex', alignItems: 'flex-start', gap: '10px',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F6F8FC'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '8px',
+                        background: '#FEF0F0', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        fontSize: '14px', flexShrink: 0
+                      }}>📦</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#0F1F3D', marginBottom: '2px' }}>
+                          {lowStockCount} Items Low on Stock
+                        </p>
+                        <p style={{ fontSize: '11px', color: '#6D7690' }}>
+                          Tap to restock before running out
+                        </p>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#D94040', fontWeight: 700,
+                        background: '#FEF0F0', padding: '2px 6px', borderRadius: '6px' }}>
+                        URGENT
+                      </span>
+                    </div>
+                  )}
+
+                  {/* All clear state */}
+                  {pendingCount === 0 && lowStockCount === 0 && (
+                    <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+                      <p style={{ fontSize: '24px', marginBottom: '8px' }}>✅</p>
+                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#0F1F3D' }}>All Clear!</p>
+                      <p style={{ fontSize: '11px', color: '#6D7690', marginTop: '4px' }}>
+                        No pending alerts right now
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <div
+                    onClick={() => { setShowNotif(false); navigate('/notifications'); }}
+                    style={{
+                      padding: '12px 16px', cursor: 'pointer',
+                      borderTop: '1px solid rgba(15,31,61,0.06)',
+                      textAlign: 'center', fontSize: '12px',
+                      fontWeight: 700, color: '#5B4FCF',
+                      background: '#F6F8FC'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#EDE9FF'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#F6F8FC'}
+                  >
+                    View All Notifications →
                   </div>
-                  <div onClick={() => {
-                    setShowNotif(false);
-                    navigate('/settings');
-                  }} style={{ padding: '10px 16px',
-                    fontSize: '11px', color: '#5B4FCF',
-                    fontWeight: 600, cursor: 'pointer',
-                    textAlign: 'center'
-                  }}>View all notifications</div>
                 </div>
               )}
 
@@ -301,9 +404,11 @@ const AppLayout = () => {
                 className="h-10 rounded-full border border-[rgba(15,31,61,0.09)] bg-white px-3 flex items-center gap-2"
               >
                 <span className="h-7 w-7 rounded-full bg-[#EEF0FF] text-[#5B4FCF] text-xs font-bold flex items-center justify-center">
-                  {(currentUser?.shopName || 'U').charAt(0).toUpperCase()}
+                  {(currentUser?.displayName || currentUser?.firstName || currentUser?.email || 'U').charAt(0).toUpperCase()}
                 </span>
-                <span className="text-xs font-semibold text-[#0F1F3D] hidden sm:inline">{currentUser?.shopName || 'User'}</span>
+                <span className="text-xs font-semibold text-[#0F1F3D] hidden sm:inline">
+                  {currentUser?.displayName || currentUser?.firstName || currentUser?.email?.split('@')[0] || 'User'}
+                </span>
               </button>
             </div>
           </div>

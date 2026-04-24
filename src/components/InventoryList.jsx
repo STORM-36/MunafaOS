@@ -62,6 +62,19 @@ const InventoryList = () => {
   const [removeStockReason, setRemoveStockReason] = useState("Damaged");
   const [removeStockError, setRemoveStockError] = useState("");
   const [detailItem, setDetailItem] = useState(null);
+  const [showAddPanel, setShowAddPanel] = useState(false);
+  const [quickForm, setQuickForm] = useState({
+    name: '',
+    category: '',
+    buyingPrice: '',
+    sellingPrice: '',
+    quantity: '',
+    packaging: '',
+    sku: '',
+    supplier: '',
+  });
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState('');
 
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
   const navigate = useNavigate();
@@ -266,6 +279,66 @@ const InventoryList = () => {
     return filtered;
   }, [inventory, searchText, selectedCategory, statusFilter, sortBy]);
 
+  const handleQuickSave = async () => {
+    if (!quickForm.name.trim()) {
+      setQuickError('Product name is required.');
+      return;
+    }
+    if (!quickForm.buyingPrice || Number(quickForm.buyingPrice) <= 0) {
+      setQuickError('Buying price must be greater than 0.');
+      return;
+    }
+    if (!effectiveWorkspaceId) {
+      setQuickError('Workspace not found. Please login again.');
+      return;
+    }
+
+    setQuickSaving(true);
+    setQuickError('');
+
+    try {
+      const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+
+      await addDoc(collection(db, 'inventory'), {
+        userId: currentUser.uid,
+        workspaceId: effectiveWorkspaceId,
+        name: quickForm.name.trim(),
+        category: quickForm.category || 'Other',
+        buyingPrice: Number(quickForm.buyingPrice) || 0,
+        sellingPrice: Number(quickForm.sellingPrice) || 0,
+        quantity: Number(quickForm.quantity) || 0,
+        packaging: Number(quickForm.packaging) || 0,
+        sku: quickForm.sku.trim(),
+        supplier: quickForm.supplier.trim(),
+        importMethod: 'MANUAL',
+        addedBy: currentUser?.displayName || currentUser?.email || '',
+        timestamp: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      await logAudit(
+        currentUser.workspaceId,
+        currentUser,
+        'CREATED_PRODUCT',
+        `Quick added product: ${quickForm.name.trim()}`
+      );
+
+      setQuickForm({
+        name: '', category: '', buyingPrice: '',
+        sellingPrice: '', quantity: '', packaging: '',
+        sku: '', supplier: '',
+      });
+      setShowAddPanel(false);
+      setQuickError('');
+    } catch (error) {
+      console.error('Quick save error:', error);
+      setQuickError('Failed to save. Please try again.');
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
   const handleAddStock = async () => {
     const qty = parseFloat(addStockQty);
 
@@ -411,104 +484,6 @@ const InventoryList = () => {
     return "৳" + num.toFixed(2);
   };
 
-  const tableRows = useMemo(() => {
-    return filteredInventory.map((item) => {
-      const price = parseFloat(item.buyingPrice) || 0;
-      const qty = parseFloat(item.quantity) || 0;
-      const total = price * qty;
-      const isOutOfStock = qty <= 0;
-
-      return (
-        <tr
-          key={item.id}
-          className={`border-b transition ${isOutOfStock ? "bg-red-50 text-gray-400 hover:bg-red-100" : "hover:bg-gray-50"}`}
-        >
-          <td className={`p-3 ${isOutOfStock ? "text-gray-400" : "text-gray-600"}`}>{formatDate(item.timestamp)}</td>
-          <td className={`p-3 font-semibold ${isOutOfStock ? "text-gray-500" : "text-gray-700"}`}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span>{item.name || "(Unnamed)"}</span>
-              {((!item.sellingPrice ||
-                 parseFloat(item.sellingPrice) === 0) ||
-                !item.supplier ||
-                String(item.supplier).trim() === "") && (
-                <span
-                  className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-300 whitespace-nowrap"
-                  title="Some fields are incomplete. Click View to check."
-                >
-                  ⚠️ Incomplete
-                </span>
-              )}
-            </div>
-          </td>
-          <td className={`p-3 ${isOutOfStock ? "text-gray-400" : "text-gray-600"}`}>{item.sku || "-"}</td>
-          <td className={`p-3 ${isOutOfStock ? "text-gray-400" : "text-gray-600"}`}>
-            <span className="bg-gray-100 px-2 py-1 rounded text-xs font-semibold">
-              {item.category || "Other"}
-            </span>
-          </td>
-          <td className={`p-3 text-right font-medium ${isOutOfStock ? "text-gray-500" : "text-gray-700"}`}>৳{price.toFixed(2)}</td>
-          <td className={`p-3 text-right ${isOutOfStock ? "text-gray-500" : "text-gray-700"}`}>
-            {qty.toFixed(0)}
-            {isOutOfStock && (
-              <span className="ml-2 inline-block rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-                [OUT OF STOCK]
-              </span>
-            )}
-          </td>
-          <td className={`p-3 text-right font-bold ${isOutOfStock ? "text-gray-500" : "text-gray-800"}`}>৳{total.toFixed(2)}</td>
-          <td className="p-3 text-center">
-            <div className="flex items-center justify-center gap-3">
-              {(userRole === "owner" || userRole === "operator") && (
-                <button
-                  onClick={() => setDetailItem(item)}
-                  className="text-indigo-600 hover:text-indigo-800 font-bold transition"
-                  title="View Details"
-                >
-                  👁
-                </button>
-              )}
-              {(userRole === "owner" || userRole === "operator") && (
-                <button
-                  onClick={() => {
-                    setAddStockItemId(item.id);
-                    setAddStockQty("");
-                    setAddStockError("");
-                  }}
-                  className="text-green-600 hover:text-green-800 font-bold transition"
-                  title="Add Stock"
-                >
-                  ➕
-                </button>
-              )}
-              {(userRole === "owner" || userRole === "operator") && (
-                <button
-                  onClick={() => {
-                    setRemoveStockItemId(item.id);
-                    setRemoveStockQty("");
-                    setRemoveStockReason("Damaged");
-                    setRemoveStockError("");
-                  }}
-                  className="text-red-500 hover:text-red-700 font-bold transition"
-                  title="Remove Stock"
-                >
-                  ➖
-                </button>
-              )}
-              {userRole === "owner" && (
-                <button
-                  onClick={() => handleDelete(item.id, item.name)}
-                  className="text-red-600 hover:text-red-800 font-bold transition"
-                  title="Delete"
-                >
-                  🗑️
-                </button>
-              )}
-            </div>
-          </td>
-        </tr>
-      );
-    });
-  }, [filteredInventory, userRole]);
 
   if (!currentUser) {
     return (
@@ -616,11 +591,19 @@ const InventoryList = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate("/add-inventory")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0F1F3D] text-white hover:bg-[#162d54] text-sm transition-colors"
+              onClick={() => setShowAddPanel(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0F1F3D] text-white hover:bg-[#162d54] text-sm font-semibold transition-colors"
             >
               <Plus size={14} />
               <span>Add SKU</span>
+            </button>
+            <button
+              onClick={() => navigate("/add-inventory")}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[rgba(15,31,61,0.15)] text-[#5B4FCF] text-sm font-semibold hover:bg-[#EEF0FF] transition-colors"
+              title="Use AI / OCR / Bulk modes"
+            >
+              <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-1.5 py-0.5 rounded-full">AI</span>
+              <span>AI Mode</span>
             </button>
           </div>
         </div>
@@ -932,7 +915,7 @@ const InventoryList = () => {
           transition: "transform 0.3s ease"
         }}
       >
-        <div className="bg-indigo-600 text-white p-5 relative">
+        <div className="text-white p-5 relative" style={{ background: '#0F1F3D' }}>
           <h3 className="text-xl font-bold pr-10">{detailItem?.name || "Product Details"}</h3>
           <span className="inline-block mt-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
             {detailItem?.category || "—"}
@@ -997,9 +980,211 @@ const InventoryList = () => {
                 state: { editItem: detailItem }
               });
             }}
-            className="flex-1 bg-indigo-600 text-white rounded-lg py-2 font-bold"
+            className="flex-1 text-white rounded-lg py-2 font-bold"
+            style={{ background: '#0F1F3D' }}
           >
             ✏️ Edit Item
+          </button>
+        </div>
+      </div>
+
+      {/* ── QUICK ADD PANEL OVERLAY ── */}
+      {showAddPanel && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40"
+          onClick={() => setShowAddPanel(false)}
+        />
+      )}
+
+      {/* ── QUICK ADD PANEL ── */}
+      <div
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col overflow-hidden"
+        style={{
+          transform: showAddPanel ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s ease'
+        }}
+      >
+        {/* Header */}
+        <div className="text-white p-5 relative" style={{ background: '#0F1F3D' }}>
+          <h3 className="text-lg font-extrabold">Add New Product</h3>
+          <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            Quick manual entry — for AI/OCR use AI Mode
+          </p>
+          <button
+            onClick={() => setShowAddPanel(false)}
+            className="absolute top-4 right-4 text-white hover:opacity-70 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* AI Mode shortcut */}
+        <div className="px-5 py-3 border-b border-slate-100 bg-[#EDE9FF]">
+          <button
+            onClick={() => { setShowAddPanel(false); navigate('/add-inventory'); }}
+            className="w-full flex items-center justify-between text-xs font-bold text-[#5B4FCF]"
+          >
+            <span>✨ Use AI Text / OCR / Bulk Import instead</span>
+            <span>→</span>
+          </button>
+        </div>
+
+        {/* Form */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0 pb-2">
+
+          {/* Live Profit Preview */}
+          {quickForm.buyingPrice && quickForm.sellingPrice && (
+            <div className="rounded-xl p-4" style={{
+              background: Number(quickForm.sellingPrice) > Number(quickForm.buyingPrice)
+                ? '#E6F7EF' : '#FEF0F0',
+              border: `1px solid ${Number(quickForm.sellingPrice) > Number(quickForm.buyingPrice) ? '#B6EDD4' : '#FCCFCF'}`
+            }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1"
+                style={{ color: Number(quickForm.sellingPrice) > Number(quickForm.buyingPrice) ? '#0D7A4E' : '#D94040' }}>
+                Live Profit Preview
+              </p>
+              <p className="text-lg font-extrabold"
+                style={{ color: Number(quickForm.sellingPrice) > Number(quickForm.buyingPrice) ? '#0D7A4E' : '#D94040' }}>
+                ৳{(Number(quickForm.sellingPrice) - Number(quickForm.buyingPrice)).toFixed(0)} per unit
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: '#4A6080' }}>
+                Margin: {Number(quickForm.sellingPrice) > 0
+                  ? (((Number(quickForm.sellingPrice) - Number(quickForm.buyingPrice)) / Number(quickForm.sellingPrice)) * 100).toFixed(1)
+                  : 0}%
+              </p>
+            </div>
+          )}
+
+          {/* Product Name */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">
+              Product Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={quickForm.name}
+              onChange={(e) => setQuickForm({ ...quickForm, name: e.target.value })}
+              className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D] transition-colors"
+              placeholder="e.g. Cotton T-Shirt"
+            />
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Category</label>
+            <select
+              value={quickForm.category}
+              onChange={(e) => setQuickForm({ ...quickForm, category: e.target.value })}
+              className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D] bg-white"
+            >
+              <option value="">Select category</option>
+              {CATEGORY_OPTIONS.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Pricing Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">
+                Buying Price <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={quickForm.buyingPrice}
+                onChange={(e) => setQuickForm({ ...quickForm, buyingPrice: e.target.value })}
+                className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D]"
+                placeholder="৳ 0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Selling Price</label>
+              <input
+                type="number"
+                min="0"
+                value={quickForm.sellingPrice}
+                onChange={(e) => setQuickForm({ ...quickForm, sellingPrice: e.target.value })}
+                className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D]"
+                placeholder="৳ 0"
+              />
+            </div>
+          </div>
+
+          {/* Quantity + Packaging Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Quantity</label>
+              <input
+                type="number"
+                min="0"
+                value={quickForm.quantity}
+                onChange={(e) => setQuickForm({ ...quickForm, quantity: e.target.value })}
+                className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D]"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Packaging Cost</label>
+              <input
+                type="number"
+                min="0"
+                value={quickForm.packaging}
+                onChange={(e) => setQuickForm({ ...quickForm, packaging: e.target.value })}
+                className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D]"
+                placeholder="৳ 0"
+              />
+            </div>
+          </div>
+
+          {/* SKU + Supplier Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">SKU</label>
+              <input
+                type="text"
+                value={quickForm.sku}
+                onChange={(e) => setQuickForm({ ...quickForm, sku: e.target.value })}
+                className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D]"
+                placeholder="SKU-001"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Supplier</label>
+              <input
+                type="text"
+                value={quickForm.supplier}
+                onChange={(e) => setQuickForm({ ...quickForm, supplier: e.target.value })}
+                className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-[#0F1F3D]"
+                placeholder="Supplier name"
+              />
+            </div>
+          </div>
+
+          {quickError && (
+            <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              ⚠️ {quickError}
+            </p>
+          )}
+
+        </div>
+
+        {/* Footer Buttons */}
+        <div className="border-t border-slate-100 p-4 pb-8 flex gap-3 flex-shrink-0 bg-white mt-auto">
+          <button
+            onClick={() => { setShowAddPanel(false); setQuickError(''); }}
+            className="flex-1 border border-slate-200 text-slate-600 rounded-lg py-2.5 text-sm font-bold hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleQuickSave}
+            disabled={quickSaving}
+            className="flex-1 text-[#E8B84B] rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+            style={{ background: '#0F1F3D' }}
+          >
+            {quickSaving ? 'Saving...' : '+ Save Product'}
           </button>
         </div>
       </div>

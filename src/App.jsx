@@ -9,6 +9,7 @@ import OrdersPage from './pages/OrdersPage';
 import TeamManagement from './pages/TeamManagement';
 import OCRScanner from './pages/OCRScanner';
 import BulkImport from './pages/BulkImport';
+import Notifications from './pages/Notifications';
 import AppLayout from './layouts/AppLayout';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -58,6 +59,7 @@ function App() {
         <Route path="/add-inventory" element={<AddInventory />} />
         <Route path="/ocr-scanner" element={<OCRScanner />} />
         <Route path="/bulk-import" element={<BulkImport />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route
           path="/team"
           element={

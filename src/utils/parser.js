@@ -18,7 +18,7 @@ const cleanInput = (text) => {
 
   // 1. Remove Labels (Only if followed by : or -)
   // Matches: "Name:", "Name-", "Mobile :", "Address :"
-  clean = clean.replace(/\b(Name|Address|Mobile|Phone|Contact|To|From|প্রাপক|প্রতি|ঠিকানা|মোবাইল)\s*[:\-\.]+\s*/gi, "");
+  clean = clean.replace(/\b(Name|Address|Mobile|Phone|Contact|To|From|প্রাপক|প্রতি|ঠিকানা|মোবাইল)\s*[:.-]+\s*/gi, "");
 
   // 2. Remove Greetings (STRICT WHOLE WORDS ONLY)
   // \b ensures we don't delete "Hi" from "Shino" or "To" from "Tomal"
@@ -35,7 +35,7 @@ const cleanInput = (text) => {
   clean = clean.replace(/ভাই|Bro|Bhai/gi, "");
 
   // 4. Remove leading/trailing punctuation (commas, dots, dashes)
-  clean = clean.replace(/^[\s,.\-]+|[\s,.\-]+$/g, "");
+  clean = clean.replace(/^[\s,.-]+|[\s,.-]+$/g, "");
 
   return clean.trim();
 };
@@ -62,10 +62,10 @@ export const parseText = (rawText) => {
   }
 
   const labelPatterns = [
-    { nameKey: /(?:নাম|নামঃ)\s*[:\-]?\s*/i, 
-      addrKey: /(?:ঠিকানা|ঠিকানাঃ)\s*[:\-]?\s*/i },
-    { nameKey: /(?:name|customer|customer name)\s*[:\-]?\s*/i,
-      addrKey: /(?:address|delivery address|delivery)\s*[:\-]?\s*/i }
+    { nameKey: /(?:নাম|নামঃ)\s*[:-]?\s*/i, 
+      addrKey: /(?:ঠিকানা|ঠিকানাঃ)\s*[:-]?\s*/i },
+    { nameKey: /(?:name|customer|customer name)\s*[:-]?\s*/i,
+      addrKey: /(?:address|delivery address|delivery)\s*[:-]?\s*/i }
   ];
 
   let labelDetectedName = "";

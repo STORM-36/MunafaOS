@@ -114,8 +114,10 @@ const SmartForm = () => {
     city: '',
     channel: 'Facebook',
     freeDelivery: false,
-    codCharge: 0,
+    paymentMethod: 'COD',
+    codCharge: 40,
     paymentFee: 0,
+    paymentFeeRate: 1.85,
   });
 
 // ⚡ SMART DETECTION LOGIC
@@ -295,8 +297,27 @@ const SmartForm = () => {
     // Delivery is only a seller cost when free delivery is offered
     // If customer pays delivery, it is neutral — not deducted from profit
     const sellerDeliveryCost = manualData.freeDelivery ? flatDelivery : 0;
-    const safeCodCharge = Number(manualData.codCharge || 0);
-    const safePaymentFee = Number(manualData.paymentFee || 0);
+
+    // Payment method cost calculation
+    const paymentMethod = manualData.paymentMethod || 'COD';
+    let safeCodCharge = 0;
+    let safePaymentFee = 0;
+
+    if (paymentMethod === 'COD') {
+      // Seller pays COD fee to courier
+      safeCodCharge = Number(manualData.codCharge || 0);
+      safePaymentFee = 0;
+    } else if (['bKash', 'Nagad', 'Rocket'].includes(paymentMethod)) {
+      // Mobile banking fee auto-calculated from gross revenue
+      safeCodCharge = 0;
+      const feeRate = Number(manualData.paymentFeeRate || 1.85) / 100;
+      safePaymentFee = Math.round(grossRevenue * feeRate);
+    } else {
+      // Bank or Already Paid — no extra fees
+      safeCodCharge = 0;
+      safePaymentFee = 0;
+    }
+
     const totalDeductions = totalProductCost + totalPackaging + flatAdSpend + sellerDeliveryCost + safeCodCharge + safePaymentFee;
     const trueNetProfit = grossRevenue - totalDeductions;
 
@@ -356,8 +377,10 @@ const SmartForm = () => {
         city: sanitizeInput(manualData.city || ''),
         channel: sanitizeInput(manualData.channel || 'Facebook'),
         freeDelivery: manualData.freeDelivery === true,
-        codCharge: sanitizeNumber(Number(manualData.codCharge || 0)),
-        paymentFee: sanitizeNumber(Number(manualData.paymentFee || 0)),
+        paymentMethod: sanitizeInput(manualData.paymentMethod || 'COD'),
+        codCharge: sanitizeNumber(safeCodCharge),
+        paymentFee: sanitizeNumber(safePaymentFee),
+        paymentFeeRate: sanitizeNumber(Number(manualData.paymentFeeRate || 0)),
         sellerDeliveryCost: sanitizeNumber(manualData.freeDelivery ? flatDelivery : 0),
         timestamp: serverTimestamp()
       });
@@ -413,8 +436,10 @@ const SmartForm = () => {
         city: '',
         channel: 'Facebook',
         freeDelivery: false,
-        codCharge: 0,
+        paymentMethod: 'COD',
+        codCharge: 40,
         paymentFee: 0,
+        paymentFeeRate: 1.85,
       });
     } catch (error) {
       console.error("Error saving:", error);
@@ -630,33 +655,99 @@ const SmartForm = () => {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs text-gray-500">COD Charge (Courier Fee)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={manualData.codCharge}
-                  onChange={(e) => setManualData({ ...manualData, codCharge: e.target.value })}
-                  className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
-                  placeholder="e.g. 40"
-                />
-                <p className="text-[10px] text-gray-400 mt-0.5">Pathao/Steadfast COD collection fee</p>
+              {/* PAYMENT METHOD SELECTOR */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 mb-2">Payment Method</label>
+                <div className="flex flex-wrap gap-2">
+                  {['COD', 'bKash', 'Nagad', 'Rocket', 'Bank', 'Paid'].map((method) => {
+                    const methodStyles = {
+                      'COD':   { active: '#0F1F3D', text: '#fff', label: '💵 COD' },
+                      'bKash': { active: '#E2136E', text: '#fff', label: '🟣 bKash' },
+                      'Nagad': { active: '#F6821F', text: '#fff', label: '🟠 Nagad' },
+                      'Rocket':{ active: '#8B008B', text: '#fff', label: '🚀 Rocket' },
+                      'Bank':  { active: '#2E5BA8', text: '#fff', label: '🏦 Bank' },
+                      'Paid':  { active: '#1A9E6A', text: '#fff', label: '✅ Paid' },
+                    };
+                    const s = methodStyles[method];
+                    const isActive = manualData.paymentMethod === method;
+                    return (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setManualData({
+                          ...manualData,
+                          paymentMethod: method,
+                          codCharge: method === 'COD' ? 40 : 0,
+                          paymentFee: 0
+                        })}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '20px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          border: isActive ? `2px solid ${s.active}` : '2px solid rgba(15,31,61,0.12)',
+                          background: isActive ? s.active : '#fff',
+                          color: isActive ? s.text : '#4A6080',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-500">Payment Fee (bKash/Nagad)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={manualData.paymentFee}
-                  onChange={(e) => setManualData({ ...manualData, paymentFee: e.target.value })}
-                  className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
-                  placeholder="e.g. 8"
-                />
-                <p className="text-[10px] text-gray-400 mt-0.5">Mobile banking transaction fee</p>
-              </div>
+              {/* COD — manual charge field */}
+              {manualData.paymentMethod === 'COD' && (
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-500">COD Charge (Courier Collection Fee)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={manualData.codCharge}
+                    onChange={(e) => setManualData({ ...manualData, codCharge: e.target.value })}
+                    className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                    placeholder="e.g. 40"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    💡 Pathao/Steadfast charges ৳30-50 per COD order — deducted from your profit
+                  </p>
+                </div>
+              )}
+
+              {/* bKash / Nagad / Rocket — auto fee calculation */}
+              {['bKash', 'Nagad', 'Rocket'].includes(manualData.paymentMethod) && (
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-500">
+                    {manualData.paymentMethod} Fee Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualData.paymentFeeRate}
+                    onChange={(e) => setManualData({ ...manualData, paymentFeeRate: e.target.value })}
+                    className="w-full p-2 border rounded font-bold text-gray-700 bg-white"
+                    placeholder="1.85"
+                  />
+                  <p className="text-[10px] text-blue-600 font-semibold mt-1">
+                    💡 Auto-calculated: ৳{manualData.sellingPrice
+                      ? Math.round(parseFloat(manualData.sellingPrice) * (parseFloat(manualData.paymentFeeRate || 1.85) / 100))
+                      : 0
+                    } will be deducted from your profit
+                  </p>
+                </div>
+              )}
+
+              {/* Bank / Paid — info message */}
+              {['Bank', 'Paid'].includes(manualData.paymentMethod) && (
+                <div className="md:col-span-2 bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 font-semibold">
+                  ✅ No payment processing fee for this method
+                </div>
+              )}
         </div>
       </div>
 
