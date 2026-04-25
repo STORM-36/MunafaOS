@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { logAudit } from "../utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { Package, BarChart2, TrendingDown, TrendingUp, AlertTriangle, Search, Plus, Edit2, Trash2, Eye } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 const PAGE_SIZE = 50;
 
@@ -40,6 +41,7 @@ const InventoryList = () => {
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
   const [totalCount, setTotalCount] = useState(0);
   const [totalItemsCount, setTotalItemsCount] = useState(0);
@@ -75,6 +77,14 @@ const InventoryList = () => {
   });
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState('');
+  const [modal, setModal] = useState({
+    isOpen: false,
+    type: "success",
+    title: "",
+    subtitle: "",
+    productName: "",
+    missingFields: [],
+  });
 
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
   const navigate = useNavigate();
@@ -276,8 +286,13 @@ const InventoryList = () => {
       });
     }
 
+    filtered = filtered.filter(item => {
+      if (!showIncompleteOnly) return true;
+      return !item.sellingPrice || !item.supplier || !item.category;
+    });
+
     return filtered;
-  }, [inventory, searchText, selectedCategory, statusFilter, sortBy]);
+  }, [inventory, searchText, selectedCategory, statusFilter, sortBy, showIncompleteOnly]);
 
   const handleQuickSave = async () => {
     if (!quickForm.name.trim()) {
@@ -324,6 +339,15 @@ const InventoryList = () => {
         `Quick added product: ${quickForm.name.trim()}`
       );
 
+      const missing = [
+        (!quickForm.sellingPrice || Number(quickForm.sellingPrice) <= 0)
+          && "Selling Price",
+        (!quickForm.supplier || quickForm.supplier.trim() === "")
+          && "Supplier",
+        (!quickForm.category || quickForm.category === "Other")
+          && "Category",
+      ].filter(Boolean);
+
       setQuickForm({
         name: '', category: '', buyingPrice: '',
         sellingPrice: '', quantity: '', packaging: '',
@@ -331,6 +355,15 @@ const InventoryList = () => {
       });
       setShowAddPanel(false);
       setQuickError('');
+
+      setModal({
+        isOpen: true,
+        type: "success",
+        title: "Product Saved!",
+        subtitle: "Your product has been added to inventory successfully.",
+        productName: quickForm.name.trim(),
+        missingFields: missing,
+      });
     } catch (error) {
       console.error('Quick save error:', error);
       setQuickError('Failed to save. Please try again.');
@@ -482,6 +515,16 @@ const InventoryList = () => {
   const formatCurrency = (value) => {
     const num = parseFloat(value) || 0;
     return "৳" + num.toFixed(2);
+  };
+
+  const handleModalConfirm = async () => {
+    setModal(prev => ({ ...prev, isOpen: false }));
+    await new Promise(resolve => setTimeout(resolve, 800));
+    navigate("/inventory-list");
+  };
+
+  const handleModalCancel = () => {
+    setModal(prev => ({ ...prev, isOpen: false }));
   };
 
 
@@ -646,6 +689,21 @@ const InventoryList = () => {
             </button>
           )}
 
+          <button
+            onClick={() => setShowIncompleteOnly(prev => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+            style={{
+              background: showIncompleteOnly
+                ? "rgba(234,179,8,0.15)"
+                : "transparent",
+              color: showIncompleteOnly ? "#854D0E" : "#64748B",
+              border: showIncompleteOnly
+                ? "1px solid rgba(234,179,8,0.4)"
+                : "1px solid #E2E8F0"
+            }}>
+            ⚠ Needs Attention
+          </button>
+
           <span className="ml-auto text-xs text-slate-400">
             {filteredInventory.length} of {totalCount} products
           </span>
@@ -691,7 +749,13 @@ const InventoryList = () => {
                   const isOut = qty === 0;
                   const isCritical = qty > 0 && qty <= 3;
                   const isLow = qty > 3 && qty <= 7;
-                  const isIncomplete = !item.sellingPrice || !item.supplier;
+                  const missingFields = [
+                    !item.sellingPrice && "Selling Price",
+                    !item.supplier && "Supplier",
+                    (!item.category || item.category === "Other") && "Category",
+                    !item.quantity && item.quantity !== 0 && "Quantity",
+                  ].filter(Boolean);
+                  const isIncomplete = missingFields.length > 0;
 
                   return (
                     <tr
@@ -705,7 +769,16 @@ const InventoryList = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-800 font-medium">{item.name}</span>
                           {isIncomplete && (
-                            <span title="Missing selling price or supplier" className="text-amber-500 text-xs">⚠️</span>
+                            <span
+                              title={`Missing: ${missingFields.join(", ")}`}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ml-1 cursor-help"
+                              style={{
+                                background: "rgba(234,179,8,0.12)",
+                                color: "#854D0E",
+                                border: "1px solid rgba(234,179,8,0.3)"
+                              }}>
+                              ⚠ {missingFields.length}
+                            </span>
                           )}
                         </div>
                         {item.sku && <p className="text-[10px] text-[#0F1F3D]/60 font-mono mt-0.5">{item.sku}</p>}
@@ -1188,6 +1261,19 @@ const InventoryList = () => {
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={modal.isOpen}
+        type={modal.type}
+        title={modal.title}
+        subtitle={modal.subtitle}
+        productName={modal.productName}
+        missingFields={modal.missingFields}
+        confirmText="View in Inventory"
+        cancelText="Add Another"
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
+      />
     </div>
   );
 };

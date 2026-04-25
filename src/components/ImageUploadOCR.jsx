@@ -2,10 +2,12 @@
 import React, { useState } from "react";
 import { parseProductFromImage } from "../services/aiService";
 
-const ImageUploadOCR = ({ onDataExtracted }) => {
+const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [imageQueue, setImageQueue] = useState([]);
+  const [queueProgress, setQueueProgress] = useState(0);
 
   // Handle image selection
   const handleImageSelect = (e) => {
@@ -25,6 +27,12 @@ const ImageUploadOCR = ({ onDataExtracted }) => {
     }
 
     setSelectedImage(file);
+
+    if (multiple && e.target.files.length > 1) {
+      const files = Array.from(e.target.files);
+      setImageQueue(files.map(f => URL.createObjectURL(f)));
+      setQueueProgress(0);
+    }
 
     // Show preview
     const reader = new FileReader();
@@ -87,26 +95,47 @@ const ImageUploadOCR = ({ onDataExtracted }) => {
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl mb-6 border border-blue-100 relative overflow-hidden">
-      <div className="absolute top-0 right-0 bg-blue-200 text-blue-800 text-[10px] font-bold px-2 py-1 rounded-bl-lg">
-        IMAGE OCR
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
+          style={{ background: "#5B4FCF" }}>
+          IMAGE OCR
+        </span>
+        <span className="text-xs font-bold" style={{ color: "#0F1F3D" }}>
+          Extract from Product Image
+        </span>
       </div>
 
-      <label className="block text-sm font-bold text-blue-700 mb-3">
-        📷 Extract from Product Image
-      </label>
-
       {/* File Input */}
-      <div className="mb-4">
+      <label className="flex flex-col items-center justify-center gap-3
+        rounded-2xl border-2 border-dashed p-8 cursor-pointer transition-all duration-200
+        border-slate-200 hover:border-yellow-400 hover:bg-yellow-50">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(15,31,61,0.07)" }}>
+            <span className="text-2xl">📷</span>
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-slate-700 text-sm font-semibold">
+            Upload Invoice or Receipt
+          </p>
+          <p className="text-slate-400 text-xs mt-1">
+            Click to browse or drag and drop
+          </p>
+          <p className="text-slate-400 text-[11px] mt-1">
+            PNG, JPG, WebP · Max 5MB
+          </p>
+        </div>
         <input
           type="file"
           accept="image/*"
+          multiple={multiple}
           onChange={handleImageSelect}
           disabled={isExtracting}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 disabled:opacity-50"
+          className="hidden"
         />
-        <p className="text-xs text-gray-500 mt-1">📤 Supports PNG, JPG, WebP (max 5MB)</p>
-      </div>
+      </label>
 
       {/* Image Preview */}
       {imagePreview && (
@@ -129,7 +158,8 @@ const ImageUploadOCR = ({ onDataExtracted }) => {
         <button
           onClick={handleExtractFromImage}
           disabled={!selectedImage || isExtracting}
-          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+          className="w-full py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-40"
+          style={{ background: "#0F1F3D", color: "#E8B84B" }}
         >
           {isExtracting ? (
             <>
@@ -145,7 +175,7 @@ const ImageUploadOCR = ({ onDataExtracted }) => {
           <button
             onClick={handleClearImage}
             disabled={isExtracting}
-            className="bg-gray-400 text-white px-4 py-2 rounded-lg font-bold hover:bg-gray-500 transition shadow-md disabled:opacity-50"
+            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition"
           >
             ✕ Clear
           </button>
@@ -153,15 +183,41 @@ const ImageUploadOCR = ({ onDataExtracted }) => {
       </div>
 
       {/* Help Text */}
-      <div className="text-xs text-gray-600 mt-3 p-3 bg-white rounded border border-gray-200">
-        <strong>💡 Tips for best results:</strong>
-        <ul className="list-disc list-inside mt-1 space-y-1">
-          <li>Use clear, well-lit photos of product labels or packaging</li>
-          <li>Ensure text is readable (not blurry or too small)</li>
-          <li>Include price tags, brand names, and quantity information</li>
-          <li>Works with product photos, invoices, and supplier messages</li>
-        </ul>
+      <div className="rounded-xl p-3 border border-slate-100 bg-slate-50">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+          Tips for best results
+        </p>
+        <div className="space-y-1">
+          {[
+            "Use clear, well-lit photos of product labels or packaging",
+            "Ensure text is readable — not blurry or too small",
+            "Include price tags, brand names and quantity info",
+            "Works with product photos, invoices and supplier messages"
+          ].map((tip, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="text-yellow-400 text-xs mt-0.5">✦</span>
+              <p className="text-[11px] text-slate-500">{tip}</p>
+            </div>
+          ))}
+        </div>
       </div>
+      {multiple && imageQueue.length > 0 && (
+        <div className="flex gap-2 mt-3 flex-wrap">
+          {imageQueue.map((src, i) => (
+            <div key={i} className="relative">
+              <img
+                src={src}
+                alt={`scan-${i}`}
+                className="w-16 h-16 object-cover rounded-xl border-2 border-slate-200"
+              />
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
+                style={{ background: "#E8B84B", color: "#0F1F3D" }}>
+                {i + 1}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

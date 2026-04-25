@@ -8,6 +8,7 @@ import { logAudit } from "../utils/auditLogger";
 import { useLocation, useNavigate } from "react-router-dom";
 import ImageUploadOCR from "../components/ImageUploadOCR";
 import { parseMultipleProductsWithAI } from "../services/aiService";
+import ConfirmModal from "../components/ConfirmModal";
 
 const AddInventory = () => {
   const { currentUser, workspaceId } = useAuth();
@@ -25,6 +26,14 @@ const AddInventory = () => {
     invoiceNumber: ""
   });
   const [packagingCost, setPackagingCost] = useState(0);
+  const [modal, setModal] = useState({
+    isOpen: false,
+    type: "success",
+    title: "",
+    subtitle: "",
+    productName: "",
+    missingFields: [],
+  });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -87,13 +96,15 @@ const AddInventory = () => {
   };
 
   const isCriticalEmpty = (value) => {
-    if (typeof value === "string" && value.trim() === "") return true;
-    if (value === 0 || value === "0") return true;
-    const parsed = parseFloat(value);
-    return !Number.isNaN(parsed) && parsed === 0;
+    if (value === null || value === undefined) return true;
+    if (typeof value === "number") return value <= 0;
+    return String(value).trim() === "";
   };
 
-  const isRecommendedEmpty = (value) => String(value ?? "").trim() === "";
+  const isRecommendedEmpty = (value) => {
+    if (value === null || value === undefined) return true;
+    return String(value).trim() === "";
+  };
 
   const handleMagicFill = async () => {
     if (!aiInput) return alert("Please paste some text first!");
@@ -224,6 +235,16 @@ const AddInventory = () => {
     }));
   };
 
+  const handleModalConfirm = async () => {
+    setModal(prev => ({ ...prev, isOpen: false }));
+    await new Promise(resolve => setTimeout(resolve, 800));
+    navigate("/inventory-list");
+  };
+
+  const handleModalCancel = () => {
+    setModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   const handleSave = async () => {
     const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
 
@@ -332,13 +353,20 @@ const AddInventory = () => {
         }
       }
 
-      const justSavedName = productName;
-      const confirmed = window.confirm(
-        `✅ "${justSavedName}" saved to inventory!\n\nSome fields like Selling Price or Supplier may still be empty.\n\nClick OK to go to Inventory List.\nClick Cancel to stay and add another product.`
-      );
-      if (confirmed) {
-        navigate("/inventory-list");
-      }
+      const missing = [
+        (!safeSellingPrice || safeSellingPrice <= 0) && "Selling Price",
+        (!formData.supplier || String(formData.supplier).trim() === "") && "Supplier",
+        (!safeCategory || safeCategory === "Other") && "Category",
+      ].filter(Boolean);
+
+      setModal({
+        isOpen: true,
+        type: "success",
+        title: "Product Saved!",
+        subtitle: "Your product has been added to inventory successfully.",
+        productName: productName,
+        missingFields: missing,
+      });
       setFormData({
         name: "",
         buyingPrice: "",
@@ -368,6 +396,7 @@ const AddInventory = () => {
   };
 
   return (
+    <>
     <div className="min-h-screen p-4 sm:p-6" style={{ background: '#F6F8FC' }}>
       <div className="max-w-4xl mx-auto space-y-5">
 
@@ -609,7 +638,15 @@ const AddInventory = () => {
                     </label>
                     <input
                       className="w-full p-2.5 rounded-xl text-sm font-semibold outline-none transition-colors"
-                      style={{ border: '1px solid rgba(15,31,61,0.12)', color: '#0F1F3D' }}
+                      style={{
+                        border: isCriticalEmpty(formData.name)
+                          ? "1.5px solid #FCCFCF"
+                          : "1.5px solid #C8E6C9",
+                        background: isCriticalEmpty(formData.name)
+                          ? "#FFF5F5"
+                          : "#F5FFF6",
+                        color: '#0F1F3D'
+                      }}
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. Cotton T-Shirt"
@@ -622,7 +659,15 @@ const AddInventory = () => {
                       <input
                         list="category-options"
                         className="w-full p-2.5 rounded-xl text-sm font-semibold outline-none bg-white"
-                        style={{ border: '1px solid rgba(15,31,61,0.12)', color: '#0F1F3D' }}
+                        style={{
+                          border: isRecommendedEmpty(formData.category)
+                            ? "1.5px solid #FFE082"
+                            : "1.5px solid #C8E6C9",
+                          background: isRecommendedEmpty(formData.category)
+                            ? "#FFFDE7"
+                            : "#F5FFF6",
+                          color: '#0F1F3D'
+                        }}
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                         placeholder="Select category"
@@ -715,11 +760,25 @@ const AddInventory = () => {
                     <label className="block text-xs font-bold mb-1" style={{ color: '#0F1F3D' }}>Supplier Name</label>
                     <input
                       className="w-full p-2.5 rounded-xl text-sm font-semibold outline-none"
-                      style={{ border: '1px solid rgba(15,31,61,0.12)', color: '#0F1F3D' }}
+                      style={{
+                        border: isRecommendedEmpty(formData.supplier)
+                          ? "1.5px solid #FFE082"
+                          : "1.5px solid #C8E6C9",
+                        background: isRecommendedEmpty(formData.supplier)
+                          ? "#FFFDE7"
+                          : "#F5FFF6",
+                        color: '#0F1F3D'
+                      }}
                       value={formData.supplier}
                       onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
                       placeholder="Supplier or vendor name"
                     />
+                    {isRecommendedEmpty(formData.supplier) && (
+                      <p className="text-[10px] mt-1 font-semibold"
+                        style={{ color: "#E8A000" }}>
+                        ⚠ Recommended — needed for supplier tracking
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -837,11 +896,25 @@ const AddInventory = () => {
                       <input
                         type="number"
                         className="w-full p-2.5 rounded-xl text-sm font-bold outline-none"
-                        style={{ border: '1.5px solid #B6EDD4', color: '#1A9E6A', background: '#F0FBF6' }}
+                        style={{
+                          border: isRecommendedEmpty(formData.sellingPrice)
+                            ? "1.5px solid #FFE082"
+                            : "1.5px solid #C8E6C9",
+                          background: isRecommendedEmpty(formData.sellingPrice)
+                            ? "#FFFDE7"
+                            : "#F5FFF6",
+                          color: '#1A9E6A'
+                        }}
                         value={formData.sellingPrice}
                         onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
                         placeholder="৳ 0"
                       />
+                      {isRecommendedEmpty(formData.sellingPrice) && (
+                        <p className="text-[10px] mt-1 font-semibold"
+                          style={{ color: "#E8A000" }}>
+                          ⚠ Recommended — needed for profit calculation
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -853,7 +926,15 @@ const AddInventory = () => {
                       <input
                         type="number"
                         className="w-full p-2.5 rounded-xl text-sm font-bold outline-none"
-                        style={{ border: '1px solid rgba(15,31,61,0.12)', color: '#0F1F3D' }}
+                        style={{
+                          border: isCriticalEmpty(formData.quantity)
+                            ? "1.5px solid #FCCFCF"
+                            : "1.5px solid #C8E6C9",
+                          background: isCriticalEmpty(formData.quantity)
+                            ? "#FFF5F5"
+                            : "#F5FFF6",
+                          color: '#0F1F3D'
+                        }}
                         value={formData.quantity}
                         onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                         placeholder="0"
@@ -915,6 +996,20 @@ const AddInventory = () => {
 
       </div>
     </div>
+
+    <ConfirmModal
+      isOpen={modal.isOpen}
+      type={modal.type}
+      title={modal.title}
+      subtitle={modal.subtitle}
+      productName={modal.productName}
+      missingFields={modal.missingFields}
+      confirmText="Go to Inventory List"
+      cancelText="Add Another"
+      onConfirm={handleModalConfirm}
+      onCancel={handleModalCancel}
+    />
+    </>
   );
 };
 

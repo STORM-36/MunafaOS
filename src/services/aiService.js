@@ -497,8 +497,13 @@ export const parseProductFromImage = async (imageInput) => {
       console.warn("⚠️ Could not list models, using default.", listError);
     }
 
-    console.log(`⚙️ Initializing Gemini Vision model: ${selectedModel}...`);
-    const model = genAI.getGenerativeModel({ model: selectedModel });
+    const VISION_FALLBACK_CHAIN = [
+      selectedModel,
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-pro",
+      "gemini-2.0-flash",
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     const prompt = `
       You are an OCR-to-structured-data extraction engine.
@@ -577,15 +582,42 @@ export const parseProductFromImage = async (imageInput) => {
 
     console.log("📤 Sending image to Gemini Vision API...");
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          data: base64Image,
-          mimeType: mimeType
+    let result = null;
+    let lastError = null;
+
+    for (const modelName of VISION_FALLBACK_CHAIN) {
+      try {
+        console.log(`⚙️ Trying OCR model: ${modelName}...`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        result = await model.generateContent([
+          {
+            inlineData: {
+              data: base64Image,
+              mimeType: mimeType
+            }
+          },
+          prompt
+        ]);
+        console.log(`✅ OCR succeeded with: ${modelName}`);
+        lastError = null;
+        break;
+      } catch (err) {
+        const is503 = err.message?.includes("503") ||
+                      err.message?.includes("high demand") ||
+                      err.message?.includes("overloaded") ||
+                      err.message?.includes("unavailable");
+        const isQuota = err.message?.includes("quota") ||
+                        err.message?.includes("billing");
+        if (is503 && !isQuota) {
+          console.warn(`⚠️ ${modelName} unavailable — trying next...`);
+          lastError = err;
+          continue;
         }
-      },
-      prompt
-    ]);
+        throw err;
+      }
+    }
+
+    if (!result) throw lastError;
 
     console.log("📥 Vision API Response received");
 
