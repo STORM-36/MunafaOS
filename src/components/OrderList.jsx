@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import Receipt from './Receipt'; // 👈 Import Receipt
 import { useAuth } from '../context/AuthContext';
 import { logAudit } from '../utils/auditLogger';
+import ConfirmModal from "./ConfirmModal";
 
 const PAGE_SIZE = 20;
 
@@ -23,6 +24,13 @@ const OrderList = ({ onOpenNewOrder }) => {
   const [customTo, setCustomTo] = useState("");
   const [cityFilter, setCityFilter] = useState("All");
   const [channelFilter, setChannelFilter] = useState("All");
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    type: "confirm",
+    title: "",
+    subtitle: "",
+    onConfirm: null
+  });
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
   const filterChangedByUser = useRef(false);
 
@@ -253,26 +261,49 @@ const OrderList = ({ onOpenNewOrder }) => {
   // 3. 🗑️ DELETE FUNCTION
   const handleDelete = async (id) => {
     if (userRole !== 'owner') {
-      alert('Only owners can delete orders.');
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Access Denied",
+        subtitle: "Only owners can delete orders.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
       return;
     }
-
-    if(window.confirm("Are you sure you want to delete this order permanently?")) {
-        await deleteDoc(doc(db, "orders", id));
-
-        if (currentUser) {
-          try {
-            await logAudit(
-              currentUser.workspaceId,
-              currentUser,
-              'DELETED_ORDER',
-              `Deleted order: ${id}`
-            );
-          } catch (err) {
-            console.error(err);
-          }
+    setConfirmModal({
+      isOpen: true,
+      type: "confirm",
+      title: "Delete this order?",
+      subtitle: "This will permanently remove the order. This action cannot be undone.",
+      onConfirm: async () => {
+        setConfirmModal(m => ({ ...m, isOpen: false }));
+        try {
+          await deleteDoc(doc(db, "orders", id));
+          await logAudit(
+            currentUser.workspaceId,
+            currentUser,
+            'DELETED_ORDER',
+            `Deleted order: ${id}`
+          );
+          setConfirmModal({
+            isOpen: true,
+            type: "success",
+            title: "Order Deleted",
+            subtitle: "The order has been permanently removed.",
+            onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+          });
+        } catch (error) {
+          console.error("Error deleting order:", error);
+          setConfirmModal({
+            isOpen: true,
+            type: "error",
+            title: "Delete Failed",
+            subtitle: "Something went wrong. Please try again.",
+            onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+          });
         }
-    }
+      }
+    });
   };
 
   // 4. 💰 PROFIT CALCULATION ENGINE
@@ -330,15 +361,19 @@ const OrderList = ({ onOpenNewOrder }) => {
   };
 
   // 5. 📄 SECURE EXPORT TO EXCEL
-  const handleExport = () => {
-    const isConfirmed = window.confirm(
-        "⚠️ SECURITY WARNING ⚠️\n\n" +
-        "This file contains sensitive customer personal data.\n" +
-        "Do NOT download this on a public computer (Printing Shop, Cyber Cafe).\n\n" +
-        "Are you sure you want to download?"
-    );
-
-    if (!isConfirmed) return;
+  const handleExport = async () => {
+    await new Promise((resolve) => {
+      setConfirmModal({
+        isOpen: true,
+        type: "confirm",
+        title: "Security Warning",
+        subtitle: "This file contains sensitive customer data. Do NOT download on a public computer. Are you sure?",
+        onConfirm: () => {
+          setConfirmModal(m => ({ ...m, isOpen: false }));
+          resolve(true);
+        }
+      });
+    });
 
     const excelData = filteredOrders.map(order => {
       const {
@@ -436,6 +471,16 @@ const OrderList = ({ onOpenNewOrder }) => {
 
   return (
     <div id="orders-list-top" className="w-full relative font-sans text-[#0F1F3D]">
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        subtitle={confirmModal.subtitle}
+        confirmText={confirmModal.type === "confirm" ? "Yes, Proceed" : "OK"}
+        cancelText={confirmModal.type === "confirm" ? "Cancel" : null}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(m => ({ ...m, isOpen: false }))}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
         <div className="rounded-xl border border-[rgba(15,31,61,0.09)] bg-[#F0F4FF] px-4 py-3">
           <p className="text-[11px] font-bold text-[#0F1F3D]">Total Orders</p>

@@ -77,6 +77,13 @@ const InventoryList = () => {
   });
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState('');
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    type: "confirm",
+    title: "",
+    subtitle: "",
+    onConfirm: null
+  });
   const [modal, setModal] = useState({
     isOpen: false,
     type: "success",
@@ -459,36 +466,55 @@ const InventoryList = () => {
 
   const handleDelete = async (id, name) => {
     if (userRole !== "owner") {
-      alert("Only owners can delete inventory items.");
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Access Denied",
+        subtitle: "Only owners can delete inventory items.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
       return;
     }
-
-    if (!window.confirm(`Delete "${name}" from inventory?`)) return;
-
-    try {
-      await deleteDoc(doc(db, "inventory", id));
-
-      if (currentUser) {
+    setConfirmModal({
+      isOpen: true,
+      type: "confirm",
+      title: `Delete "${name}"?`,
+      subtitle: "This will permanently remove this item from your inventory.",
+      onConfirm: async () => {
+        setConfirmModal(m => ({ ...m, isOpen: false }));
         try {
-          await logAudit(
-            currentUser.workspaceId,
-            currentUser,
-            'DELETED_PRODUCT',
-            `Deleted product: ${name || id}`
-          );
-        } catch (err) {
-          console.error(err);
+          await deleteDoc(doc(db, "inventory", id));
+          if (currentUser) {
+            try {
+              await logAudit(
+                currentUser.workspaceId,
+                currentUser,
+                "DELETED_INVENTORY",
+                `Deleted inventory item: ${name}`
+              );
+            } catch (auditErr) {
+              console.error(auditErr);
+            }
+          }
+          setConfirmModal({
+            isOpen: true,
+            type: "success",
+            title: "Item Deleted",
+            subtitle: `"${name}" has been removed from inventory.`,
+            onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+          });
+        } catch (error) {
+          console.error("Error deleting item:", error);
+          setConfirmModal({
+            isOpen: true,
+            type: "error",
+            title: "Delete Failed",
+            subtitle: "Something went wrong. Please try again.",
+            onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+          });
         }
       }
-
-      alert("✅ Item deleted successfully!");
-
-      setInventory((prev) => prev.filter((item) => item.id !== id));
-      setTotalCount((prev) => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Error deleting item:", error);
-      alert("❌ Failed to delete item.");
-    }
+    });
   };
 
   const handleLoadMore = () => {
@@ -538,6 +564,16 @@ const InventoryList = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        subtitle={confirmModal.subtitle}
+        confirmText={confirmModal.type === "confirm" ? "Yes, Delete" : "OK"}
+        cancelText={confirmModal.type === "confirm" ? "Cancel" : null}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(m => ({ ...m, isOpen: false }))}
+      />
 
       {/* ── KPI CARDS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -642,12 +678,11 @@ const InventoryList = () => {
             </button>
             <button
               onClick={() => navigate("/add-inventory")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[rgba(15,31,61,0.15)] text-[#5B4FCF] text-sm font-semibold hover:bg-[#EEF0FF] transition-colors"
-              title="Use AI / OCR / Bulk modes"
-            >
-              <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-1.5 py-0.5 rounded-full">AI</span>
-              <span>AI Mode</span>
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:opacity-90"
+              style={{ background: "#0F1F3D", color: "#E8B84B" }}>
+              + Add Product
             </button>
+
           </div>
         </div>
 
@@ -1091,16 +1126,6 @@ const InventoryList = () => {
           </button>
         </div>
 
-        {/* AI Mode shortcut */}
-        <div className="px-5 py-3 border-b border-slate-100 bg-[#EDE9FF]">
-          <button
-            onClick={() => { setShowAddPanel(false); navigate('/add-inventory'); }}
-            className="w-full flex items-center justify-between text-xs font-bold text-[#5B4FCF]"
-          >
-            <span>✨ Use AI Text / OCR / Bulk Import instead</span>
-            <span>→</span>
-          </button>
-        </div>
 
         {/* Form */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0 pb-2">

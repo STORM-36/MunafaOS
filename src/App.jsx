@@ -15,7 +15,7 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Lazy load components
-const Settings = lazy(() => import('./components/Settings'));
+const Settings = lazy(() => import('./pages/Settings'));
 import { validateThirdPartyLibraries } from './utils/validateLibraries'; 
 
 const LoadingComponent = () => (

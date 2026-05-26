@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import { logAudit } from "../utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { ScanLine, CheckCircle2, RefreshCw, Sparkles, Eye, FileText, ChevronRight, Edit2, Copy, Zap } from "lucide-react";
+import ConfirmModal from "../components/ConfirmModal";
 
 const OCRScanner = () => {
   const { currentUser, workspaceId } = useAuth();
@@ -57,6 +58,13 @@ const OCRScanner = () => {
     invoiceNumber: "",
     addedBy: "",
     userPhone: ""
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    type: "success",
+    title: "",
+    subtitle: "",
+    onConfirm: null
   });
 
   const toNumber = (value) => {
@@ -228,12 +236,16 @@ const OCRScanner = () => {
         }
       }
 
-      const goToList = window.confirm(
-        `✅ Product saved to inventory!\n\nSome fields may still be empty.\n\nOK → Go to Inventory List\nCancel → Stay and scan more`
-      );
-      if (goToList) {
-        navigate("/inventory-list");
-      }
+      setConfirmModal({
+        isOpen: true,
+        type: "success",
+        title: "Product Saved!",
+        subtitle: "Some fields may still be empty. You can edit them from the Inventory List.",
+        onConfirm: () => {
+          setConfirmModal(m => ({ ...m, isOpen: false }));
+          navigate("/inventory-list");
+        }
+      });
       setFormData({
         name: "",
         buyingPrice: "",
@@ -256,12 +268,28 @@ const OCRScanner = () => {
       setPackagingCost(0);
     } catch (error) {
       console.error("Error:", error);
-      alert("❌ Failed to save.");
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Save Failed",
+        subtitle: "Something went wrong. Please try again.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
     }
   };
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        subtitle={confirmModal.subtitle}
+        confirmText="Go to Inventory"
+        cancelText="Stay & Scan More"
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(m => ({ ...m, isOpen: false }))}
+      />
 
       {/* HERO BANNER */}
       <div className="rounded-2xl p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4"

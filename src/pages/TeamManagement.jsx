@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where, orderBy, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logAudit } from '../utils/auditLogger';
+import ConfirmModal from "../components/ConfirmModal";
 
 const TeamManagement = () => {
   const { currentUser, workspaceId, userRole } = useAuth();
@@ -20,6 +21,13 @@ const TeamManagement = () => {
     email: '',
     password: '',
     role: 'Operator'
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    type: "success",
+    title: "",
+    subtitle: "",
+    onConfirm: null
   });
 
   const effectiveWorkspaceId = workspaceId || currentUser?.workspaceId || null;
@@ -70,7 +78,13 @@ const TeamManagement = () => {
       },
       (error) => {
         console.error('Team realtime subscription failed:', error);
-        alert('Failed to track team status in real time: ' + error.message);
+        setConfirmModal({
+          isOpen: true,
+          type: "error",
+          title: "Failed to Load Team",
+          subtitle: "Could not load team members. Please refresh the page.",
+          onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+        });
         setIsLoading(false);
       }
     );
@@ -93,12 +107,24 @@ const TeamManagement = () => {
     const email = formData.email.trim();
 
     if (!firstName || !lastName || !email || !formData.password) {
-      alert('Please fill all required fields.');
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Missing Fields",
+        subtitle: "Please fill in all required fields before saving.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
       return;
     }
 
     if (!effectiveWorkspaceId) {
-      alert('Workspace not found. Please re-login and try again.');
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Workspace Not Found",
+        subtitle: "Could not find your workspace. Please try again.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
       return;
     }
 
@@ -136,17 +162,40 @@ const TeamManagement = () => {
         role: 'Operator'
       });
       setIsAddingMode(false);
-      alert('Employee saved successfully.');
+      setConfirmModal({
+        isOpen: true,
+        type: "success",
+        title: "Employee Created",
+        subtitle: "The employee account has been created successfully.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
     } catch (error) {
       console.error('Employee create failed:', error);
-      alert('Failed to create employee: ' + error.message);
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Creation Failed",
+        subtitle: "Failed to create employee account. Please try again.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleRevokeAccess = async (memberId) => {
-    if (!window.confirm('Revoke access for this team member?')) return;
+    await new Promise((resolve) => {
+      setConfirmModal({
+        isOpen: true,
+        type: "confirm",
+        title: "Revoke Access?",
+        subtitle: "This team member will immediately lose access to the workspace.",
+        onConfirm: () => {
+          setConfirmModal(m => ({ ...m, isOpen: false }));
+          resolve(true);
+        }
+      });
+    });
 
     try {
       await updateDoc(doc(db, 'users', memberId), {
@@ -170,7 +219,13 @@ const TeamManagement = () => {
       setTeamMembers((previousMembers) => previousMembers.filter((member) => member.id !== memberId));
     } catch (error) {
       console.error('Revoke failed:', error);
-      alert('Failed to revoke access: ' + error.message);
+      setConfirmModal({
+        isOpen: true,
+        type: "error",
+        title: "Revoke Failed",
+        subtitle: "Failed to revoke access. Please try again.",
+        onConfirm: () => setConfirmModal(m => ({ ...m, isOpen: false }))
+      });
     }
   };
 
@@ -207,6 +262,16 @@ const TeamManagement = () => {
 
   return (
     <div className="w-full max-w-[100vw] overflow-x-hidden px-4 md:px-8 box-border">
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        subtitle={confirmModal.subtitle}
+        confirmText={confirmModal.type === "confirm" ? "Yes, Revoke" : "OK"}
+        cancelText={confirmModal.type === "confirm" ? "Cancel" : null}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(m => ({ ...m, isOpen: false }))}
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Team & Workspace Access</h1>

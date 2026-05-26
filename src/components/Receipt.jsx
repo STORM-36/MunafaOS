@@ -16,23 +16,23 @@ const Receipt = ({ order }) => {
     };
 
     const handleWhatsApp = () => {
-        const customerPhone = (order.phone || '')
-            .replace(/\D/g, '')
-            .replace(/^0/, '880');
-        const total = (
-            parseFloat(order.sellingPrice || 0) +
-            parseFloat(order.deliveryCost || 0)
-        ).toFixed(0);
-        const message =
-            `আপনার অর্ডার কনফার্ম হয়েছে! ✅\n\n` +
-            `নাম: ${order.customerName}\n` +
-            `পণ্য: ${order.items?.[0]?.name || 'পণ্য'}\n` +
-            `ডেলিভারি চার্জ: ৳${parseFloat(order.deliveryCost || 0).toFixed(0)}\n` +
-            `মোট: ৳${total}\n\n` +
-            `ধন্যবাদ আপনার অর্ডারের জন্য! 🙏`;
-        const url = `https://wa.me/${customerPhone}?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank');
-    };
+     const customerPhone = (order.phone || '')
+       .replace(/\D/g, '')
+       .replace(/^0/, '880');
+     const total = (
+       parseFloat(order.grossRevenue || order.sellingPrice || 0) +
+       (order.freeDelivery ? 0 : parseFloat(order.deliveryCost || 0))
+     ).toFixed(0);
+     const message =
+       `Your order is confirmed! ✅\n\n` +
+       `Name: ${order.customerName}\n` +
+       `Product: ${order.items?.[0]?.name || order.productName || 'Product'}\n` +
+       `Delivery Charge: ৳${parseFloat(order.deliveryCost || 0).toFixed(0)}\n` +
+       `Total: ৳${total}\n\n` +
+       `Thank you for shopping with us! 🛍️`;
+     const url = `https://wa.me/${customerPhone}?text=${encodeURIComponent(message)}`;
+     window.open(url, '_blank');
+   };
 
     const handleDownloadPDF = async () => {
         const receiptElement = document.getElementById('receipt');
@@ -96,132 +96,115 @@ const Receipt = ({ order }) => {
         }
     };
 
-    return (
-        <div id="receipt" className="w-80 bg-white font-sans">
-            {/* HEADER — Brand */}
-            <div className="bg-[#0F1F3D] text-white text-center py-4 px-6">
-                <p className="text-[10px] font-bold tracking-[3px] text-[#E8B84B] uppercase">MunafaOS</p>
-                <h1 className="text-lg font-extrabold mt-0.5">Customer Receipt</h1>
-                <p className="text-[10px] text-white/60 mt-0.5">{order.date}</p>
-            </div>
+  return (
+  <div id="receipt" className="w-80 bg-white font-sans">
 
-            {/* CUSTOMER INFO */}
-            <div className="px-5 py-4 border-b border-dashed border-gray-200">
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Customer Details</p>
-                <p className="text-sm font-bold text-[#0F1F3D]">{order.customerName}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{order.phone}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{order.address}</p>
-            </div>
+    {/* HEADER */}
+    <div className="bg-[#0F1F3D] text-white text-center py-4 px-6">
+      <p className="text-[10px] font-bold tracking-[3px] text-[#E8B84B] uppercase">MunafaOS</p>
+      <h1 className="text-lg font-extrabold mt-0.5">Customer Receipt</h1>
+      <p className="text-[10px] text-white/60 mt-0.5">{order.date}</p>
+    </div>
 
-            {/* ORDER INFO */}
-            <div className="px-5 py-4 border-b border-dashed border-gray-200">
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Order Details</p>
-                {order.items?.map((item, index) => (
-                    <div key={index} className="flex justify-between text-sm py-1">
-                        <span className="text-[#0F1F3D] font-medium">{item.name}</span>
-                    </div>
-                ))}
-                {order.category && (
-                    <p className="text-xs text-gray-400 mt-1">
-                        {order.category}{order.subcategory ? ` • ${order.subcategory}` : ''}
-                    </p>
-                )}
-                {order.sku && (
-                    <p className="text-xs text-gray-400">SKU: {order.sku}</p>
-                )}
-            </div>
+    {/* CUSTOMER INFO */}
+    <div className="px-5 py-4 border-b border-dashed border-gray-200">
+      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Customer Details</p>
+      <p className="text-sm font-bold text-[#0F1F3D]">{order.customerName}</p>
+      <p className="text-xs text-gray-500 mt-0.5">{order.phone}</p>
+      <p className="text-xs text-gray-500 mt-0.5">{order.address}</p>
+    </div>
 
-            {/* PAYMENT SUMMARY — Customer visible */}
-            <div className="px-5 py-4 border-b border-dashed border-gray-200 space-y-2">
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Payment Summary</p>
-
-                {/* Original price before discount */}
-                <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Product Price</span>
-                    <span className="font-semibold text-[#0F1F3D]">
-                        ৳{(
-                            parseFloat(order.unitSellingPrice || 0) *
-                            parseFloat(order.qty || order.quantity || 1)
-                        ).toFixed(0)}
-                    </span>
-                </div>
-
-                {/* Discount — only if exists */}
-                {parseFloat(order.discountPrice || order.totalDiscount || 0) > 0 && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Discount</span>
-                        <span className="font-semibold text-green-600">
-                            -৳{parseFloat(order.totalDiscount || order.discountPrice || 0).toFixed(0)}
-                        </span>
-                    </div>
-                )}
-
-                {/* After discount subtotal */}
-                <div className="flex justify-between text-sm text-gray-500">
-                    <span>After Discount</span>
-                    <span>৳{parseFloat(order.grossRevenue || order.totalRevenue || order.sellingPrice || 0).toFixed(0)}</span>
-                </div>
-
-                {/* Delivery — only if customer pays (not free delivery) */}
-                {!order.freeDelivery && parseFloat(order.deliveryCost || 0) > 0 && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Delivery Charge</span>
-                        <span className="font-semibold text-[#0F1F3D]">
-                            ৳{parseFloat(order.deliveryCost || 0).toFixed(0)}
-                        </span>
-                    </div>
-                )}
-
-                {/* Free delivery badge */}
-                {order.freeDelivery && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Delivery</span>
-                        <span className="font-semibold text-green-600">FREE ✓</span>
-                    </div>
-                )}
-
-                {/* Total Paid */}
-                <div className="flex justify-between text-sm font-extrabold border-t border-gray-200 pt-2 mt-1">
-                    <span className="text-[#0F1F3D]">Total Paid</span>
-                    <span className="text-[#0F1F3D]">
-                        ৳{(
-                            parseFloat(order.grossRevenue || order.totalRevenue || order.sellingPrice || 0) +
-                            (order.freeDelivery ? 0 : parseFloat(order.deliveryCost || 0))
-                        ).toFixed(0)}
-                    </span>
-                </div>
-            </div>
-
-            {/* FOOTER */}
-            <div className="px-5 py-3 text-center">
-                <p className="text-[10px] text-gray-400">Thank you for your order!</p>
-                <p className="text-[9px] text-gray-300 mt-0.5">Powered by MunafaOS</p>
-            </div>
-
-            {/* ACTION BUTTONS — hidden from PDF */}
-            <div id="receipt-buttons" className="flex flex-col gap-2 px-5 pb-5">
-                <button
-                    onClick={handleDownloadPDF}
-                    className="w-full bg-[#0F1F3D] text-[#E8B84B] font-bold py-2.5 rounded-lg text-sm"
-                >
-                    📥 Download PDF
-                </button>
-                <button
-                    onClick={handleWhatsApp}
-                    className="w-full font-bold py-2.5 rounded-lg text-sm text-white"
-                    style={{ background: '#1A9E6A' }}
-                >
-                    💬 Send on WhatsApp
-                </button>
-                <button
-                    onClick={handlePrint}
-                    className="w-full bg-white border border-[rgba(15,31,61,0.15)] text-[#0F1F3D] font-bold py-2.5 rounded-lg text-sm"
-                >
-                    🖨️ Print
-                </button>
-            </div>
+    {/* ORDER INFO */}
+    <div className="px-5 py-4 border-b border-dashed border-gray-200">
+      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Order Details</p>
+      {order.items?.map((item, index) => (
+        <div key={index} className="flex justify-between text-sm py-1">
+          <span className="text-[#0F1F3D] font-medium">{item.name}</span>
         </div>
-    );
+      ))}
+      {order.category && (
+        <p className="text-xs text-gray-400 mt-1">
+          {order.category}{order.subcategory ? ` · ${order.subcategory}` : ''}
+        </p>
+      )}
+      {order.sku && (
+        <p className="text-xs text-gray-400">SKU: {order.sku}</p>
+      )}
+    </div>
+
+    {/* PAYMENT SUMMARY */}
+    <div className="px-5 py-4 border-b border-dashed border-gray-200 space-y-2">
+        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Payment Summary</p>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Product Price</span>
+          <span className="font-semibold text-[#0F1F3D]">
+            ৳{(parseFloat(order.unitSellingPrice || 0) * parseFloat(order.qty || order.quantity || 1)).toFixed(0)}
+          </span>
+        </div>
+        {parseFloat(order.totalDiscount || order.discountPrice || 0) > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Discount</span>
+            <span className="font-semibold text-green-600">
+              -৳{parseFloat(order.totalDiscount || order.discountPrice || 0).toFixed(0)}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>After Discount</span>
+          <span>৳{parseFloat(order.grossRevenue || order.sellingPrice || 0).toFixed(0)}</span>
+        </div>
+        {!order.freeDelivery && parseFloat(order.deliveryCost || 0) > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Delivery Charge</span>
+            <span className="font-semibold text-[#0F1F3D]">
+              ৳{parseFloat(order.deliveryCost || 0).toFixed(0)}
+            </span>
+          </div>
+        )}
+        {order.freeDelivery && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Delivery</span>
+            <span className="font-semibold text-green-600">FREE ✓</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm font-extrabold border-t border-gray-200 pt-2 mt-1">
+          <span className="text-[#0F1F3D]">Total Paid</span>
+          <span className="text-[#0F1F3D]">
+            ৳{(
+              parseFloat(order.grossRevenue || order.sellingPrice || 0) +
+              (order.freeDelivery ? 0 : parseFloat(order.deliveryCost || 0))
+            ).toFixed(0)}
+          </span>
+        </div>
+      </div>
+
+    {/* FOOTER */}
+    <div className="px-5 py-3 text-center">
+      <p className="text-[10px] text-gray-400">Thank you for your order!</p>
+      <p className="text-[9px] text-gray-300 mt-0.5">Powered by MunafaOS</p>
+    </div>
+
+    {/* ACTION BUTTONS */}
+    <div id="receipt-buttons" className="flex flex-col gap-2 px-5 pb-5">
+      <button
+        onClick={handleDownloadPDF}
+        className="w-full bg-[#0F1F3D] text-[#E8B84B] font-bold py-2.5 rounded-lg text-sm">
+        📥 Download PDF
+      </button>
+      <button
+        onClick={handleWhatsApp}
+        className="w-full font-bold py-2.5 rounded-lg text-sm text-white"
+        style={{ background: '#1A9E6A' }}>
+        💬 Send on WhatsApp
+      </button>
+      <button
+        onClick={handlePrint}
+        className="w-full bg-white border border-[rgba(15,31,61,0.15)] text-[#0F1F3D] font-bold py-2.5 rounded-lg text-sm">
+        🖨️ Print
+      </button>
+    </div>
+  </div>
+);
 };
 
 export default Receipt;
