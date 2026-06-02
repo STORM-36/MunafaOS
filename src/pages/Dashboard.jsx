@@ -51,23 +51,6 @@ const Dashboard = () => {
     return 'Good night';
   };
 
-  const recalcProfit = (order) => {
-    const qty = Number(order?.qty || order?.quantity || 1);
-    const grossRevenue = Number(
-      order?.grossRevenue ?? order?.totalRevenue ?? order?.sellingPrice ?? 0
-    );
-    const totalProductCost = Number(order?.totalProductCost ?? order?.productCost ?? 0);
-    const totalPackaging = Number(order?.totalPackaging ?? (Number(order?.unitPackaging || 0) * qty));
-    const totalAdSpend = Number(order?.totalAdSpend ?? (Number(order?.adCost || 0)));
-    const freeDelivery = order?.freeDelivery === true;
-    const totalDelivery = Number(order?.totalDelivery ?? order?.deliveryCost ?? 0);
-    const sellerDeliveryCost = freeDelivery ? totalDelivery : 0;
-    const codCharge = Number(order?.codCharge || 0);
-    const paymentFee = Number(order?.paymentFee || 0);
-    return grossRevenue - (totalProductCost + totalPackaging + totalAdSpend + sellerDeliveryCost + codCharge + paymentFee);
-  };
-
-
   const profitMargin = kpis.revenue > 0 ? ((kpis.profit / kpis.revenue) * 100).toFixed(1) : 0;
   const avgDaily = (kpis.revenue / 30).toFixed(0);
 
@@ -117,7 +100,7 @@ const Dashboard = () => {
       );
 
       dateMap.set(dayKey, dateMap.get(dayKey) + price);
-      const orderProfit = recalcProfit(order);
+      const orderProfit = Number(order?.trueNetProfit ?? order?.finalProfit ?? order?.netProfit ?? 0);
       profitMap.set(dayKey, (profitMap.get(dayKey) || 0) + orderProfit);
     });
 
@@ -167,7 +150,18 @@ const Dashboard = () => {
           const cat = order?.category || 'Uncategorized';
           categoryMap[cat] = (categoryMap[cat] || 0) + price;
 
-          const profit = recalcProfit(order);
+          const stored = order?.trueNetProfit ?? order?.finalProfit ?? order?.netProfit;
+          const profit = (stored !== undefined && stored !== null && stored !== '')
+            ? Number(stored)
+            : (() => {
+                const rev = Number(order?.grossRevenue ?? order?.totalRevenue ?? 0);
+                const cost = Number(order?.productCost ?? 0) * Number(order?.qty ?? 1);
+                const packaging = Number(order?.packaging ?? order?.packagingCost ?? 0);
+                const adSpend = Number(order?.totalAdSpend ?? (order?.adCost ?? 0) * Number(order?.qty ?? 1));
+                const delivery = Number(order?.sellerDeliveryCost ?? order?.deliveryCost ?? 0);
+                const discount = Number(order?.totalDiscount ?? 0);
+                return rev - cost - packaging - adSpend - delivery - discount;
+              })();
           totalProfit += Number.isFinite(profit) ? profit : 0;
 
           if (order?.status === 'Pending' || !order?.status) {
