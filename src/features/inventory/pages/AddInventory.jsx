@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { parseProductWithAI } from "../services/aiService";
-import { CATEGORY_OPTIONS } from "../utils/categories";
-import { db } from "../firebase";
+import { parseProductWithAI } from "../../../services/aiService";
+import { CATEGORY_OPTIONS } from "../../../shared/utils/categories";
+import { db } from "../../../firebase";
 import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
-import { useAuth } from "../context/AuthContext";
-import { logAudit } from "../utils/auditLogger";
+import { useAuth } from "../../auth/context/AuthContext";
+import { logAudit } from "../../../shared/utils/auditLogger";
 import { useLocation, useNavigate } from "react-router-dom";
-import ConfirmModal from "../components/ConfirmModal";
+import ConfirmModal from "../../../components/ConfirmModal";
 
 const AddInventory = () => {
   const { currentUser, workspaceId } = useAuth();

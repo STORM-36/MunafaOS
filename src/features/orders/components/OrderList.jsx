@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { db } from '../firebase'; 
+import { db } from '../../../firebase';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import Receipt from './Receipt'; // 👈 Import Receipt
-import { useAuth } from '../context/AuthContext';
-import { logAudit } from '../utils/auditLogger';
-import ConfirmModal from "./ConfirmModal";
+import { useAuth } from '../../auth/context/AuthContext';
+import { logAudit } from '../../../shared/utils/auditLogger';
+import ConfirmModal from "../../../components/ConfirmModal";
 
 const PAGE_SIZE = 20;
 

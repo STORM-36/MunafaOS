@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../firebase'; 
+import { db, auth } from '../../../firebase';
 import {
   collection,
   addDoc,
@@ -13,11 +13,11 @@ import {
 } from 'firebase/firestore';
 import * as XLSX from 'xlsx'; // Import Excel Tool
 
-import { parseText } from '../utils/parser';
-import { SAMPLE_DATA } from '../utils/sampleData';
-import { CATEGORY_OPTIONS } from '../utils/categories';
-import { useAuth } from '../context/AuthContext';
-import { logAudit } from '../utils/auditLogger';
+import { parseText } from '../../../shared/utils/parser';
+import { SAMPLE_DATA } from '../../../shared/utils/sampleData';
+import { CATEGORY_OPTIONS } from '../../../shared/utils/categories';
+import { useAuth } from '../../auth/context/AuthContext';
+import { logAudit } from '../../../shared/utils/auditLogger';
 
 // 🛡️ INPUT SANITIZATION - Prevents XSS and injection attacks
 const sanitizeInput = (input) => {

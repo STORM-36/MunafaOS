@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { db, auth } from "../firebase";
+import { useAuth } from "../../auth/context/AuthContext";
+import { db, auth } from "../../../firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { logAudit } from "../utils/auditLogger";
-import ConfirmModal from "../components/ConfirmModal";
+import { logAudit } from "../../../shared/utils/auditLogger";
+import ConfirmModal from "../../../components/ConfirmModal";
 import {
   User, Bell, Shield, Database, Eye, EyeOff,
   Trash2, AlertTriangle, CheckCircle2, ChevronRight,

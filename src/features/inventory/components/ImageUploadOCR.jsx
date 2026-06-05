@@ -1,6 +1,6 @@
 /* src/components/ImageUploadOCR.jsx */
 import React, { useState } from "react";
-import { parseProductFromImage } from "../services/aiService";
+import { parseProductFromImage } from "../../../services/aiService";
 
 const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
   const [selectedImage, setSelectedImage] = useState(null);

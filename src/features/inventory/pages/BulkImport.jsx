@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import { parseMultipleProductsWithAI } from "../services/aiService";
-import { CATEGORY_OPTIONS } from "../utils/categories";
-import { db } from "../firebase";
+import { parseMultipleProductsWithAI } from "../../../services/aiService";
+import { CATEGORY_OPTIONS } from "../../../shared/utils/categories";
+import { db } from "../../../firebase";
 import { collection, serverTimestamp, writeBatch, doc } from "firebase/firestore";
-import { useAuth } from "../context/AuthContext";
-import { logAudit } from "../utils/auditLogger";
+import { useAuth } from "../../auth/context/AuthContext";
+import { logAudit } from "../../../shared/utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { Upload, Sparkles, Brain, CheckCircle2, RefreshCw, Zap, FileText, X } from "lucide-react";
-import ConfirmModal from "../components/ConfirmModal";
+import ConfirmModal from "../../../components/ConfirmModal";
 
 const BulkImport = () => {
   const { currentUser, workspaceId } = useAuth();

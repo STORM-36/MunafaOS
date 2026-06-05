@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../auth/context/AuthContext';
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from 'firebase/firestore';
 import {
   TrendingUp, ShoppingBag, DollarSign,
   Clock, Sparkles, ArrowUpRight, ArrowDownRight,
   ChevronRight, AlertTriangle
 } from 'lucide-react';
-import { db } from '../firebase.js';
+import { db } from '../../../firebase.js';
 import {
   AreaChart, Area,
   BarChart, Bar,

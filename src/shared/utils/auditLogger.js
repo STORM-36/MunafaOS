@@ -1,5 +1,5 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 
 export const logAudit = async (workspaceId, user, action, details = '') => {
   try {

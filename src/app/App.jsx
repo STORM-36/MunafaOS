@@ -1,22 +1,22 @@
 import React, { useEffect, Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import AuthForm from './components/AuthForm';
-import Unauthorized from './components/Unauthorized';
-import Dashboard from './pages/Dashboard';
-import AddInventory from './pages/AddInventory';
-import InventoryListPage from './pages/InventoryListPage';
-import OrdersPage from './pages/OrdersPage';
-import TeamManagement from './pages/TeamManagement';
-import OCRScanner from './pages/OCRScanner';
-import BulkImport from './pages/BulkImport';
-import Notifications from './pages/Notifications';
-import AppLayout from './layouts/AppLayout';
-import { useAuth } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import AuthForm from '../features/auth/components/AuthForm';
+import Unauthorized from '../features/auth/components/Unauthorized';
+import Dashboard from '../features/dashboard/pages/Dashboard';
+import AddInventory from '../features/inventory/pages/AddInventory';
+import InventoryListPage from '../features/inventory/pages/InventoryListPage';
+import OrdersPage from '../features/orders/pages/OrdersPage';
+import TeamManagement from '../features/team/pages/TeamManagement';
+import OCRScanner from '../features/inventory/pages/OCRScanner';
+import BulkImport from '../features/inventory/pages/BulkImport';
+import Notifications from '../features/notifications/pages/Notifications';
+import AppLayout from '../layouts/AppLayout';
+import { useAuth } from '../features/auth/context/AuthContext';
+import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 
 // Lazy load components
-const Settings = lazy(() => import('./pages/Settings'));
-import { validateThirdPartyLibraries } from './utils/validateLibraries'; 
+const Settings = lazy(() => import('../features/settings/pages/Settings'));
+import { validateThirdPartyLibraries } from '../utils/validateLibraries';
 
 const LoadingComponent = () => (
   <div className="flex items-center justify-center p-10">

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../auth/context/AuthContext';
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where, orderBy, getDocs, limit } from 'firebase/firestore';
-import { db } from '../firebase';
-import { logAudit } from '../utils/auditLogger';
-import ConfirmModal from "../components/ConfirmModal";
+import { db } from '../../../firebase';
+import { logAudit } from '../../../shared/utils/auditLogger';
+import ConfirmModal from "../../../components/ConfirmModal";
 
 const TeamManagement = () => {
   const { currentUser, workspaceId, userRole } = useAuth();

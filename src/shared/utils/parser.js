@@ -23,10 +23,10 @@ const cleanInput = (text) => {
   // 2. Remove Greetings (STRICT WHOLE WORDS ONLY)
   // \b ensures we don't delete "Hi" from "Shino" or "To" from "Tomal"
   const greetings = [
-    "Hello", "Hi", "Hey", "Assalamu Alaikum", "Salam", 
+    "Hello", "Hi", "Hey", "Assalamu Alaikum", "Salam",
     "Order", "Plz", "Please", "Need", "Delivery", "Cod"
   ];
-  
+
   // Create a safe Regex: /\b(Hello|Hi|...)\b/gi
   const greetingRegex = new RegExp(`\\b(${greetings.join('|')})\\b`, 'gi');
   clean = clean.replace(greetingRegex, "");
@@ -52,17 +52,17 @@ export const parseText = (rawText) => {
   // 1. PHONE SURGERY (Extract & Cut)
   let detectedPhone = "";
   // Regex for BD Phone: Optional +88, then 01, then 9 digits
-  const phoneRegex = /(?:\+88)?01[3-9]\d{8}/; 
+  const phoneRegex = /(?:\+88)?01[3-9]\d{8}/;
   const phoneMatch = workingText.match(phoneRegex);
-  
+
   if (phoneMatch) {
     detectedPhone = phoneMatch[0];
     // Remove the phone number completely so it doesn't mess up address detection
-    workingText = workingText.replace(detectedPhone, ""); 
+    workingText = workingText.replace(detectedPhone, "");
   }
 
   const labelPatterns = [
-    { nameKey: /(?:নাম|নামঃ)\s*[:-]?\s*/i, 
+    { nameKey: /(?:নাম|নামঃ)\s*[:-]?\s*/i,
       addrKey: /(?:ঠিকানা|ঠিকানাঃ)\s*[:-]?\s*/i },
     { nameKey: /(?:name|customer|customer name)\s*[:-]?\s*/i,
       addrKey: /(?:address|delivery address|delivery)\s*[:-]?\s*/i }
@@ -73,23 +73,23 @@ export const parseText = (rawText) => {
 
   for (const pattern of labelPatterns) {
     const nameMatch = workingText.match(
-      new RegExp(pattern.nameKey.source + 
+      new RegExp(pattern.nameKey.source +
       "([^\\n]+)", "i")
     );
     const addrMatch = workingText.match(
-      new RegExp(pattern.addrKey.source + 
+      new RegExp(pattern.addrKey.source +
       "([^\\n]+)", "i")
     );
 
     if (nameMatch?.[1]) {
-      labelDetectedName = 
+      labelDetectedName =
         nameMatch[1].trim();
       workingText = workingText.replace(
         nameMatch[0], ""
       );
     }
     if (addrMatch?.[1]) {
-      labelDetectedAddress = 
+      labelDetectedAddress =
         addrMatch[1].trim();
       workingText = workingText.replace(
         addrMatch[0], ""
@@ -102,13 +102,13 @@ export const parseText = (rawText) => {
 
   // 3. DEFINE ADDRESS KEYWORDS (The Map)
   const addressKeywords = [
-    'road', 'house', 'sector', 'block', 'village', 'thana', 'district', 'dhaka', 
+    'road', 'house', 'sector', 'block', 'village', 'thana', 'district', 'dhaka',
     'chittagong', 'sylhet', 'street', 'flat', 'floor', 'holding', 'market', 'bazar', 'hat',
     'goli', 'lane', 'avenue', 'upazila', 'union', 'area', 'zone',
-    'রোড', 'রাস্তা', 'বাসা', 'বাড়ি', 'হোল্ডিং', 'সেক্টর', 'ব্লক', 'লেন', 'গলি',
+    'রোড', 'রাস্তা', 'বাসা', 'বাড়ি', 'হোল্ডিং', 'সেক্টর', 'ব্লক', 'লেন', 'গলি',
     'থানা', 'জেলা', 'গ্রাম', 'ডাকঘর', 'পোস্ট', 'ফ্লোর', 'তলা', 'বাজার', 'হাট',
-    'ঢাকা', 'চট্টগ্রাম', 'রাজশাহী', 'খুলনা', 'বরিশাল', 'সিলেট', 'রংপুর', 'ময়মনসিংহ',
-    'কুমিল্লা', 'গাজীপুর', 'নারায়ণগঞ্জ', 'সাভার', 'কেরানীগঞ্জ', 'ফেনী', 'বগুড়া'
+    'ঢাকা', 'চট্টগ্রাম', 'রাজশাহী', 'খুলনা', 'বরিশাল', 'সিলেট', 'রংপুর', 'ময়মনসিংহ',
+    'কুমিল্লা', 'গাজীপুর', 'নারায়ণগঞ্জ', 'সাভার', 'কেরানীগঞ্জ', 'ফেনী', 'বগুড়া'
   ];
 
   let detectedName = "";
@@ -146,11 +146,11 @@ export const parseText = (rawText) => {
       // Part 1 is Name, Part 2 is Address
       const part1 = line.substring(0, splitIndex).replace(/,|-/g, "").trim();
       const part2 = line.substring(splitIndex).replace(/^,/, "").trim(); // Remove leading comma
-      
+
       // Safety: If "Name" is suspicious (has digits or is empty), swap or fix
       if (/\d/.test(part1) && !/\d/.test(part2)) {
          // Rare case: User typed Address first? We assume strict order Name -> Address
-         detectedName = part1; 
+         detectedName = part1;
          detectedAddress = part2;
       } else {
          detectedName = part1;
@@ -163,7 +163,7 @@ export const parseText = (rawText) => {
       if (line.length < 25) {
         detectedName = line.trim();
       } else {
-        detectedAddress = line.trim(); 
+        detectedAddress = line.trim();
       }
     }
 
@@ -173,7 +173,7 @@ export const parseText = (rawText) => {
     // ==================================================
     for (let line of lines) {
       const lowerLine = line.toLowerCase();
-      
+
       // Is this line an address?
       // 1. Has keyword?
       const hasKeyword = addressKeywords.some(key => lowerLine.includes(key));
@@ -198,7 +198,7 @@ export const parseText = (rawText) => {
   return {
     name: labelDetectedName || detectedName,
     phone: detectedPhone,
-    address: labelDetectedAddress || 
+    address: labelDetectedAddress ||
              detectedAddress
   };
 };

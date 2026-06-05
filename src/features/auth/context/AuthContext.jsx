@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-import { logAudit } from '../utils/auditLogger';
+import { auth, db } from '../../../firebase';
+import { logAudit } from '../../../shared/utils/auditLogger';
 
 const AuthContext = createContext({
   currentUser: null,

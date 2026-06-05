@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth, provider as googleProvider } from '../firebase';
-import logoImg from '../assets/logo.png';
-import bgChart from '../assets/bg-chart.jpg';
+import { auth, provider as googleProvider } from '../../../firebase';
+import logoImg from '../../../assets/logo.png';
+import bgChart from '../../../assets/bg-chart.jpg';
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -14,7 +14,7 @@ import {
   getRedirectResult
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../../../firebase';
 import { Mail, Lock, Eye, EyeOff, Shield, User, Building2, Phone, Zap, Cpu, Globe } from 'lucide-react';
 
 const FEATURE_BADGES = [

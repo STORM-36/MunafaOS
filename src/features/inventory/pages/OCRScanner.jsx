@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import ImageUploadOCR from "../components/ImageUploadOCR";
-import { CATEGORY_OPTIONS } from "../utils/categories";
-import { db } from "../firebase";
+import { CATEGORY_OPTIONS } from "../../../shared/utils/categories";
+import { db } from "../../../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { useAuth } from "../context/AuthContext";
-import { logAudit } from "../utils/auditLogger";
+import { useAuth } from "../../auth/context/AuthContext";
+import { logAudit } from "../../../shared/utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { ScanLine, CheckCircle2, RefreshCw, Sparkles, Eye, FileText, ChevronRight, Edit2, Copy, Zap } from "lucide-react";
-import ConfirmModal from "../components/ConfirmModal";
+import ConfirmModal from "../../../components/ConfirmModal";
 
 const OCRScanner = () => {
   const { currentUser, workspaceId } = useAuth();

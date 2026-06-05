@@ -1,6 +1,6 @@
 /* src/components/InventoryList.jsx */
 import React, { useState, useEffect, useMemo } from "react";
-import { db } from "../firebase";
+import { db } from "../../../firebase";
 import {
   collection,
   query,
@@ -17,12 +17,12 @@ import {
   getDocs,
   startAfter
 } from "firebase/firestore";
-import { CATEGORY_OPTIONS } from "../utils/categories";
-import { useAuth } from "../context/AuthContext";
-import { logAudit } from "../utils/auditLogger";
+import { CATEGORY_OPTIONS } from "../../../shared/utils/categories";
+import { useAuth } from "../../auth/context/AuthContext";
+import { logAudit } from "../../../shared/utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { Package, BarChart2, TrendingDown, TrendingUp, AlertTriangle, Search, Plus, Edit2, Trash2, Eye } from "lucide-react";
-import ConfirmModal from "./ConfirmModal";
+import ConfirmModal from "../../../components/ConfirmModal";
 
 const PAGE_SIZE = 50;
 
@@ -320,7 +320,7 @@ const InventoryList = () => {
 
     try {
       const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
+      const { db } = await import('../../../firebase');
 
       await addDoc(collection(db, 'inventory'), {
         userId: currentUser.uid,

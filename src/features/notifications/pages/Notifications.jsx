@@ -2,8 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { useAuth } from '../context/AuthContext';
+import { db } from '../../../firebase';
+import { useAuth } from '../../auth/context/AuthContext';
 
 const Notifications = () => {
   const { currentUser, workspaceId } = useAuth();
