@@ -233,7 +233,7 @@ const AppLayout = () => {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto pt-16 md:pt-0">
-        <div className="sticky top-0 z-30 bg-white border-b border-[#B8C5D8] px-4 md:px-6 py-3">
+        <div className="sticky top-0 z-30 bg-white border-b border-[#B8C5D8] px-4 md:px-6 py-5">
           <div className="flex items-center justify-between gap-3 relative">
             <div className="flex items-center">
               {location.pathname !== '/dashboard' && (
