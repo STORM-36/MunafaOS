@@ -134,7 +134,7 @@ const AppLayout = () => {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#D6E0F5] border-r border-[#B8C5D8] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#D6E0F5] shadow-[1px_0_0_0_#B8C5D8] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         } flex flex-col`}
       >
