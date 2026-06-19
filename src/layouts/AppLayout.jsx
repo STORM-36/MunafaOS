@@ -134,14 +134,13 @@ const AppLayout = () => {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#D6E0F5] border-r border-[rgba(15,31,61,0.15)] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#D6E0F5] border-r border-[#B8C5D8] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         } flex flex-col`}
       >
-        <div className="py-5 px-5">
+        <div className="py-5 px-5 border-b border-[#B8C5D8]">
           <MunafaLogo size={38} showWordmark />
         </div>
-        <div className="h-px mx-0 bg-[rgba(15,31,61,0.15)]" />
 
         <div className="py-4 px-4 md:px-5 flex-1 flex flex-col">
           <div>
