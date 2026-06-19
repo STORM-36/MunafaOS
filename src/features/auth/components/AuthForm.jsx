@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, provider as googleProvider } from '../../../firebase';
-import logoImg from '../../../assets/logo.png';
 import bgChart from '../../../assets/bg-chart.jpg';
+import MunafaLogo from '../../../components/MunafaLogo';
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -162,14 +162,8 @@ const AuthForm = () => {
         <div className="absolute inset-0 bg-slate-950/90" />
 
         <div>
-          <div className="relative z-10 flex items-center gap-3">
-            <img src={logoImg} alt="MunafaOS" className="w-8 h-8 rounded object-cover" />
-            <div className="flex flex-col">
-              <h1 className="text-white font-extrabold text-2xl leading-none">MunafaOS</h1>
-              <span className="text-emerald-500 text-[10px] font-bold tracking-[0.2em] uppercase">
-                PROFIT OPTIMIZER
-              </span>
-            </div>
+          <div className="relative z-10">
+            <MunafaLogo size={42} showWordmark onDark />
           </div>
 
           <h1 className="relative z-10 mt-8 text-4xl sm:text-5xl font-extrabold leading-tight">

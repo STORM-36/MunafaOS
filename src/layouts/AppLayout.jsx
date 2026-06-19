@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import MunafaLogo from '../components/MunafaLogo';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { db } from '../firebase';
@@ -116,7 +117,7 @@ const AppLayout = () => {
   return (
     <div className="flex h-screen bg-[#F6F8FC] overflow-hidden font-sans">
       <header className="md:hidden flex items-center justify-between bg-white text-[#0F1F3D] border-b border-[rgba(15,31,61,0.09)] p-4 w-full z-50 absolute top-0 left-0">
-        <h1 className="text-lg font-extrabold">MunafaOS</h1>
+        <MunafaLogo size={32} showWordmark />
         <button
           type="button"
           onClick={() => setIsMobileMenuOpen((previousState) => !previousState)}
@@ -137,9 +138,8 @@ const AppLayout = () => {
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         } flex flex-col`}
       >
-        <div className="py-6 px-6 border-b border-[rgba(15,31,61,0.09)]">
-          <h2 className="text-xl font-extrabold text-[#0F1F3D]">MunafaOS</h2>
-          <p className="text-[11px] text-[#5F6B7D] mt-1 break-words whitespace-normal">Seller Suite</p>
+        <div className="py-5 px-5 border-b border-[rgba(15,31,61,0.09)]">
+          <MunafaLogo size={38} showWordmark />
         </div>
 
         <div className="py-4 px-4 md:px-5 flex-1 flex flex-col">

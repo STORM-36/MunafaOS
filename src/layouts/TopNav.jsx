@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import MunafaLogo from "../components/MunafaLogo";
 
 const TopNav = ({ onLogout, menuItems }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -13,8 +14,8 @@ const TopNav = ({ onLogout, menuItems }) => {
   return (
     <nav className="bg-white shadow-sm p-4 sticky top-0 z-50">
       <div className="max-w-4xl mx-auto flex justify-between items-center">
-        <Link to="/dashboard" className="text-xl font-bold text-blue-600 tracking-tighter">
-          🚀 MunafaOS
+        <Link to="/dashboard" style={{ textDecoration: "none" }}>
+          <MunafaLogo size={34} showWordmark />
         </Link>
 
         <div className="flex gap-3 items-center">
