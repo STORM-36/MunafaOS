@@ -69,7 +69,7 @@ const MunafaLogo = ({ size = 40, showWordmark = false, onDark = false }) => {
             marginTop: 4,
           }}
         >
-          PROFIT OS
+          PROFIT OPTIMIZER
         </span>
       </div>
     </div>
