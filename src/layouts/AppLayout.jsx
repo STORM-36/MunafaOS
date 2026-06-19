@@ -138,9 +138,10 @@ const AppLayout = () => {
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         } flex flex-col`}
       >
-        <div className="py-5 px-5 border-b border-[rgba(15,31,61,0.15)]">
+        <div className="py-5 px-5">
           <MunafaLogo size={38} showWordmark />
         </div>
+        <div className="h-px mx-0 bg-[rgba(15,31,61,0.15)]" />
 
         <div className="py-4 px-4 md:px-5 flex-1 flex flex-col">
           <div>
