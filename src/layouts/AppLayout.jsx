@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import MunafaLogo from '../components/MunafaLogo';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { LayoutDashboard, ShoppingBag, Package, Upload, ScanLine, BarChart3, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { db } from '../firebase';
 
@@ -147,14 +148,14 @@ const AppLayout = () => {
             <p className="text-[9px] text-[#6D7690] font-bold tracking-[1.2px] mt-4 mb-2 uppercase">Main</p>
             <nav className="space-y-1">
               <NavLink to="/dashboard" onClick={closeMobileMenu} className={navItemClass}>
-                <span>Dashboard</span>
+                <div className="flex items-center gap-2"><LayoutDashboard size={16} /><span>Dashboard</span></div>
               </NavLink>
               <NavLink to="/orders" onClick={closeMobileMenu} className={navItemClass}>
-                <span>Orders</span>
+                <div className="flex items-center gap-2"><ShoppingBag size={16} /><span>Orders</span></div>
                 <span className="text-xs font-bold bg-[#F6F8FC] text-[#0F1F3D] px-2 py-0.5 rounded-full">{orderCount}</span>
               </NavLink>
               <NavLink to="/inventory-list" onClick={closeMobileMenu} className={navItemClass}>
-                <span>Inventory List</span>
+                <div className="flex items-center gap-2"><Package size={16} /><span>Inventory List</span></div>
                 <span className="text-xs font-bold bg-[#F6F8FC] text-[#0F1F3D] px-2 py-0.5 rounded-full">{inventoryCount}</span>
               </NavLink>
             </nav>
@@ -162,11 +163,11 @@ const AppLayout = () => {
             <p className="text-[9px] text-[#6D7690] font-bold tracking-[1.2px] mt-6 mb-2 uppercase">AI Tools</p>
             <nav className="space-y-1">
               <NavLink to="/bulk-import" onClick={closeMobileMenu} className={navItemClass}>
-                <span>Bulk Import</span>
+                <div className="flex items-center gap-2"><Upload size={16} /><span>Bulk Import</span></div>
                 <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-2 py-0.5 rounded-full">AI</span>
               </NavLink>
               <NavLink to="/ocr-scanner" onClick={closeMobileMenu} className={navItemClass}>
-                <span>OCR Scanner</span>
+                <div className="flex items-center gap-2"><ScanLine size={16} /><span>OCR Scanner</span></div>
                 <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-2 py-0.5 rounded-full">AI</span>
               </NavLink>
             </nav>
@@ -178,7 +179,7 @@ const AppLayout = () => {
                 onClick={closeMobileMenu}
                 className={`${sidebarLinkBase} px-3 py-2 text-sm text-[#0F1F3D] hover:bg-[#F6F8FC] rounded-[10px]`}
               >
-                <span>Analytics</span>
+                <div className="flex items-center gap-2"><BarChart3 size={16} /><span>Analytics</span></div>
                 <span />
               </Link>
             </nav>
@@ -204,7 +205,7 @@ const AppLayout = () => {
               onClick={closeMobileMenu}
               className={navItemClass}
             >
-              Settings
+              <div className="flex items-center gap-2"><SettingsIcon size={16} />Settings</div>
             </NavLink>
 
             <Link
@@ -233,7 +234,7 @@ const AppLayout = () => {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto pt-16 md:pt-0">
-        <div className="sticky top-0 z-30 bg-white border-b border-[#B8C5D8] px-4 md:px-6" style={{height:'78px'}}>
+        <div className="sticky top-0 z-30 bg-white border-b border-[#B8C5D8] px-4 md:px-6" style={{paddingTop:'18.6px', paddingBottom:'18.6px'}}>
           <div className="flex items-center justify-between gap-3 relative">
             <div className="flex items-center">
               {location.pathname !== '/dashboard' && (
