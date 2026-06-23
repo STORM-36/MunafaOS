@@ -1,6 +1,7 @@
 /* src/components/ImageUploadOCR.jsx */
 import React, { useState } from "react";
 import { parseProductFromImage } from "../../../services/aiService";
+import { useToast } from "../../../shared/components/Toast/ToastContext";
 
 const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -8,6 +9,7 @@ const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [imageQueue, setImageQueue] = useState([]);
   const [queueProgress, setQueueProgress] = useState(0);
+  const toast = useToast();
 
   // Handle image selection
   const handleImageSelect = (e) => {
@@ -16,13 +18,13 @@ const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("❌ Please select an image file (PNG, JPG, WebP, etc.)");
+      toast.error('Please select an image file (PNG, JPG, WebP, etc.)');
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert("❌ Image is too large. Please select an image under 5MB.");
+      toast.error('Image is too large. Please select an image under 5MB.');
       return;
     }
 
@@ -45,7 +47,7 @@ const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
   // Extract product data from image using Gemini Vision
   const handleExtractFromImage = async () => {
     if (!selectedImage) {
-      alert("Please select an image first.");
+      toast.warning('Please select an image first.');
       return;
     }
 
@@ -76,13 +78,13 @@ const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
         // Reset form
         setSelectedImage(null);
         setImagePreview(null);
-        alert("✅ Image processed! Form fields updated.");
+        toast.success('Image processed! Form fields updated.');
       } else {
-        alert("❌ Could not extract data from image. Try a clearer photo.");
+        toast.warning('Could not extract data from image. Try a clearer photo.');
       }
     } catch (error) {
       console.error("OCR Error:", error);
-      alert("❌ Image processing failed: " + error.message);
+      toast.error('Image processing failed: ' + error.message);
     } finally {
       setIsExtracting(false);
     }

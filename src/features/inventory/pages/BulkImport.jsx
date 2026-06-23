@@ -8,10 +8,12 @@ import { logAudit } from "../../../shared/utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { Upload, Sparkles, Brain, CheckCircle2, RefreshCw, Zap, FileText, X } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import { useToast } from "../../../shared/components/Toast/ToastContext";
 
 const BulkImport = () => {
   const { currentUser, workspaceId } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [aiInput, setAiInput] = useState("");
   const [isBulkThinking, setIsBulkThinking] = useState(false);
   const [bulkItems, setBulkItems] = useState([]);
@@ -42,7 +44,7 @@ const BulkImport = () => {
   };
 
   const handleBulkParse = async () => {
-    if (!aiInput) return alert("Please paste supplier text first!");
+    if (!aiInput) { toast.warning('Please paste supplier text first!'); return; }
 
     setIsBulkThinking(true);
     setActiveStep(2);
@@ -54,7 +56,7 @@ const BulkImport = () => {
       console.log(`✅ Found ${items.length} products from bulk import.`);
     } else {
       setBulkItems([]);
-      alert("No products found. Try clearer text or fewer items.");
+      toast.warning('No products found. Try clearer text or fewer items.');
     }
 
     setIsBulkThinking(false);
@@ -67,8 +69,8 @@ const BulkImport = () => {
   const handleBulkSave = async () => {
     const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
 
-    if (!currentUser || !effectiveWorkspaceId) return alert("Please login first.");
-    if (!bulkItems.length) return alert("No items to save.");
+    if (!currentUser || !effectiveWorkspaceId) { toast.warning('Please login first.'); return; }
+    if (!bulkItems.length) { toast.warning('No items to save.'); return; }
 
     const batch = writeBatch(db);
     const userId = currentUser.uid;
@@ -133,7 +135,7 @@ const BulkImport = () => {
       setBulkSupplier({ supplierName: "", invoiceNumber: "" });
     } catch (error) {
       console.error("Error saving bulk items:", error);
-      alert("❌ Failed to save bulk items.");
+      toast.error('Failed to save bulk items.');
     }
   };
 

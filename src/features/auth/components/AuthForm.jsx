@@ -16,6 +16,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Mail, Lock, Eye, EyeOff, Shield, User, Building2, Phone, Zap, Cpu, Globe } from 'lucide-react';
+import { useToast } from '../../../shared/components/Toast/ToastContext';
 
 const FEATURE_BADGES = [
   { label: 'REAL-TIME SYNC', Icon: Zap },
@@ -38,6 +39,7 @@ const AuthForm = () => {
   const [rememberStation, setRememberStation] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const heading = useMemo(
     () => (isLogin ? 'Sign in to MunafaOS' : 'Initialize Your Ecosystem'),
@@ -76,7 +78,7 @@ const AuthForm = () => {
         navigate('/dashboard', { replace: true });
       } else {
         if (password !== confirmPassword) {
-          alert('Access Keys do not match.');
+          toast.error('Access Keys do not match.');
           setLoading(false);
           return;
         }
@@ -87,7 +89,7 @@ const AuthForm = () => {
           await sendEmailVerification(signupResult.user);
         }
         await signOut(auth);
-        alert('Account initialized! Please check your email (and spam folder) for the verification link before signing in.');
+        toast.success('Account initialized! Please check your email (and spam folder) for the verification link before signing in.');
         setIsLogin(true);
         setPassword('');
         setConfirmPassword('');
@@ -130,18 +132,18 @@ const AuthForm = () => {
 
   const handleResetPassword = async () => {
     if (!email.trim()) {
-      alert('Please enter your business email first.');
+      toast.warning('Please enter your business email first.');
       return;
     }
 
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      alert('Reset link dispatched to your email.');
+      toast.success('Reset link dispatched to your email.');
     } catch (err) {
       if (err?.code === 'auth/user-not-found') {
-        alert('No account found with this email.');
+        toast.error('No account found with this email.');
       } else {
-        alert(err?.message || 'Password reset failed.');
+        toast.error(err?.message || 'Password reset failed.');
       }
     }
   };

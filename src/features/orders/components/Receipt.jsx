@@ -1,8 +1,11 @@
 import React from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { useToast } from '../../../shared/components/Toast/ToastContext';
 
 const Receipt = ({ order }) => {
+    const toast = useToast();
+
     const handlePrint = () => {
         const printContent = document.getElementById('receipt');
         const win = window.open('', '_blank');
@@ -86,7 +89,7 @@ const Receipt = ({ order }) => {
             pdf.save(`receipt-${order.id || 'download'}.pdf`);
         } catch (error) {
             console.error('Error generating PDF:', error);
-            alert('Failed to generate PDF: ' + error.message);
+            toast.error('Failed to generate PDF: ' + error.message);
             
             // Make sure buttons are visible again
             const buttonsElement = document.getElementById('receipt-buttons');

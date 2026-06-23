@@ -18,6 +18,7 @@ import { SAMPLE_DATA } from '../../../shared/utils/sampleData';
 import { CATEGORY_OPTIONS } from '../../../shared/utils/categories';
 import { useAuth } from '../../auth/context/AuthContext';
 import { logAudit } from '../../../shared/utils/auditLogger';
+import { useToast } from '../../../shared/components/Toast/ToastContext';
 
 // 🛡️ INPUT SANITIZATION - Prevents XSS and injection attacks
 const sanitizeInput = (input) => {
@@ -90,6 +91,7 @@ const extractCity = (address) => {
 
 const SmartForm = () => {
   const { currentUser, workspaceId } = useAuth();
+  const toast = useToast();
   const [inputText, setInputText] = useState('');
   const [inventoryOptions, setInventoryOptions] = useState([]);
   const [discount, setDiscount] = useState(0);
@@ -254,14 +256,14 @@ const SmartForm = () => {
     );
 
     if (!selectedInventoryId || !hasValidInventorySelection) {
-      alert('Please select a valid product from the inventory before saving.');
+      toast.error('Please select a valid product from the list.');
       return;
     }
 
     const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
 
     if (!currentUser || !effectiveWorkspaceId) {
-      alert("⚠️ Please Login First!");
+      toast.warning('Please log in first.');
       return;
     }
     const safeCategory = normalizeCategory(manualData.category);
@@ -322,7 +324,7 @@ const SmartForm = () => {
     const trueNetProfit = grossRevenue - totalDeductions;
 
     if (!grossRevenue || grossRevenue <= 0) {
-      alert("⚠️ Stop! You must enter a valid quantity/discount combination.");
+      toast.error('Stop! You must enter a valid quantity/discount combination.');
       return;
     }
 
@@ -330,7 +332,7 @@ const SmartForm = () => {
     const availableStock = sanitizeNumber(selectedInventoryItem?.quantity || 0);
 
     if (qty > availableStock) {
-      alert(`Error: Insufficient stock. Only ${availableStock} remaining in this batch.`);
+      toast.error(`Insufficient stock. Only ${availableStock} remaining in this batch.`);
       return;
     }
 
@@ -421,7 +423,7 @@ const SmartForm = () => {
         console.error('Inventory auto-deduction failed:', inventoryError);
       }
 
-      alert("✅ Order Saved!");
+      toast.success('Order Saved!');
 
       // Reset Form for next customer
       setInputText('');
@@ -443,7 +445,7 @@ const SmartForm = () => {
       });
     } catch (error) {
       console.error("Error saving:", error);
-      alert("❌ Error saving order");
+      toast.error('Error saving order');
     }
   };
 

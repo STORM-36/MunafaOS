@@ -8,10 +8,12 @@ import { logAudit } from "../../../shared/utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { ScanLine, CheckCircle2, RefreshCw, Sparkles, Eye, FileText, ChevronRight, Edit2, Copy, Zap } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import { useToast } from "../../../shared/components/Toast/ToastContext";
 
 const OCRScanner = () => {
   const { currentUser, workspaceId } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [packagingCost, setPackagingCost] = useState(0);
   const [scanStatus, setScanStatus] = useState("idle"); // "idle" | "scanning" | "done"
   const [scanProgress, setScanProgress] = useState(0);
@@ -180,8 +182,8 @@ const OCRScanner = () => {
   const handleSave = async () => {
     const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
 
-    if (!currentUser || !effectiveWorkspaceId) return alert("Please login first.");
-    if (!formData.name || !formData.buyingPrice) return alert("Fill required fields");
+    if (!currentUser || !effectiveWorkspaceId) { toast.warning('Please login first.'); return; }
+    if (!formData.name || !formData.buyingPrice) { toast.warning('Fill required fields'); return; }
 
     const safeBuyingPrice = toNumber(formData.buyingPrice);
     const safeQuantity = toNumber(formData.quantity);
@@ -193,7 +195,7 @@ const OCRScanner = () => {
     const addedByFallback = currentUser?.displayName || currentUser?.email || "";
     const safeAddedBy = String(formData.addedBy || addedByFallback || "").trim();
 
-    if (safeBuyingPrice <= 0) return alert("Buying price must be greater than 0");
+    if (safeBuyingPrice <= 0) { toast.warning('Buying price must be greater than 0'); return; }
 
     try {
       await addDoc(collection(db, "inventory"), {

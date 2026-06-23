@@ -3,6 +3,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../../firebase';
 import { logAudit } from '../../../shared/utils/auditLogger';
+import { useToast } from '../../../shared/components/Toast/ToastContext';
 
 const AuthContext = createContext({
   currentUser: null,
@@ -13,6 +14,7 @@ const AuthContext = createContext({
 });
 
 export const AuthProvider = ({ children }) => {
+  const toast = useToast();
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [workspaceId, setWorkspaceId] = useState(null);
@@ -88,7 +90,7 @@ export const AuthProvider = ({ children }) => {
           const userData = userSnap.data();
 
           if (userData?.role === 'revoked') {
-            alert('Your access to this workspace has been revoked.');
+            toast.warning('Your access to this workspace has been revoked.');
             await signOut(auth);
             setUserRole(null);
             setWorkspaceId(null);

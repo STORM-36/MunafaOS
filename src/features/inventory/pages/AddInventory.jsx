@@ -7,11 +7,13 @@ import { useAuth } from "../../auth/context/AuthContext";
 import { logAudit } from "../../../shared/utils/auditLogger";
 import { useLocation, useNavigate } from "react-router-dom";
 import ConfirmModal from "../../../components/ConfirmModal";
+import { useToast } from "../../../shared/components/Toast/ToastContext";
 
 const AddInventory = () => {
   const { currentUser, workspaceId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
   const editItem = location.state?.editItem || null;
   const isEditMode = !!editItem;
   const [aiInput, setAiInput] = useState("");
@@ -98,7 +100,7 @@ const AddInventory = () => {
   };
 
   const handleMagicFill = async () => {
-    if (!aiInput) return alert("Please paste some text first!");
+    if (!aiInput) { toast.warning('Please paste some text first!'); return; }
 
     setIsThinking(true);
     const aiData = await parseProductWithAI(aiInput);
@@ -112,7 +114,7 @@ const AddInventory = () => {
         category: normalizeCategory(aiData.category) || "Other"
       }));
     } else {
-      alert("AI couldn't understand that. Try simpler text.");
+      toast.warning("AI couldn't understand that. Try simpler text.");
     }
     setIsThinking(false);
   };
@@ -130,8 +132,8 @@ const AddInventory = () => {
   const handleSave = async () => {
     const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
 
-    if (!currentUser || !effectiveWorkspaceId) return alert("Please login first.");
-    if (!formData.name || !formData.buyingPrice) return alert("Fill required fields");
+    if (!currentUser || !effectiveWorkspaceId) { toast.warning('Please login first.'); return; }
+    if (!formData.name || !formData.buyingPrice) { toast.warning('Fill required fields'); return; }
 
     const safeBuyingPrice = toNumber(formData.buyingPrice);
     const safeQuantity = toNumber(formData.quantity);
@@ -144,7 +146,7 @@ const AddInventory = () => {
     const addedByFallback = currentUser?.displayName || currentUser?.email || "";
     const safeAddedBy = String(formData.addedBy || addedByFallback || "").trim();
 
-    if (safeBuyingPrice <= 0) return alert("Buying price must be greater than 0");
+    if (safeBuyingPrice <= 0) { toast.warning('Buying price must be greater than 0'); return; }
 
     if (isEditMode) {
       try {
@@ -184,12 +186,12 @@ const AddInventory = () => {
           }
         }
 
-        alert("✅ Inventory Updated!");
+        toast.success('Inventory Updated!');
         navigate("/inventory-list");
         return;
       } catch (error) {
         console.error("Error updating:", error);
-        alert("❌ Failed to update.");
+        toast.error('Failed to update.');
         return;
       }
     }
@@ -273,7 +275,7 @@ const AddInventory = () => {
       setAiInput("");
     } catch (error) {
       console.error("Error:", error);
-      alert("❌ Failed to save.");
+      toast.error('Failed to save.');
     }
   };
 
