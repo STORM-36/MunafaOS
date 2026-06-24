@@ -1,3 +1,46 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  /* T3 Brand Colors */
+  --t3-navy: #0F1F3D;
+  --t3-gold: #E8B84B;
+  --t3-purple: #5B4FCF;
+
+  /* Surfaces */
+  --t3-surface: #F6F8FC;
+  --t3-surface-dark: #E8EDF5;
+  --t3-border: rgba(15, 31, 61, 0.09);
+  --t3-border-strong: rgba(15, 31, 61, 0.18);
+
+  /* Text */
+  --t3-text-primary: #0F1F3D;
+  --t3-text-secondary: rgba(15, 31, 61, 0.6);
+  --t3-text-muted: rgba(15, 31, 61, 0.4);
+
+  /* Sidebar */
+  --t3-sidebar-bg: #FFFFFF;
+  --t3-sidebar-active: #5B4FCF;
+  --t3-sidebar-active-bg: rgba(91, 79, 207, 0.08);
+
+  /* Status */
+  --t3-success: #16A34A;
+  --t3-success-bg: rgba(22, 163, 74, 0.08);
+  --t3-warning: #D97706;
+  --t3-warning-bg: rgba(217, 119, 6, 0.08);
+  --t3-error: #DC2626;
+  --t3-error-bg: rgba(220, 38, 38, 0.08);
+  --t3-info: #2563EB;
+  --t3-info-bg: rgba(37, 99, 235, 0.08);
+
+  /* Spacing & Shape */
+  --t3-radius-sm: 8px;
+  --t3-radius-md: 10px;
+  --t3-radius-lg: 12px;
+
+  /* Shadows */
+  --t3-shadow-sm: 0 1px 3px rgba(15, 31, 61, 0.08);
+  --t3-shadow-md: 0 4px 12px rgba(15, 31, 61, 0.10);
+  --t3-shadow-lg: 0 8px 24px rgba(15, 31, 61, 0.12);
+}
