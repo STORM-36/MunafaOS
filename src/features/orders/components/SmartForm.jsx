@@ -19,6 +19,7 @@ import { CATEGORY_OPTIONS } from '../../../shared/utils/categories';
 import { useAuth } from '../../auth/context/AuthContext';
 import { logAudit } from '../../../shared/utils/auditLogger';
 import { useToast } from '../../../shared/components/Toast/ToastContext';
+import useCustomerTrust from '../../../features/analytics/hooks/useCustomerTrust';
 
 // 🛡️ INPUT SANITIZATION - Prevents XSS and injection attacks
 const sanitizeInput = (input) => {
@@ -121,6 +122,8 @@ const SmartForm = () => {
     paymentFee: 0,
     paymentFeeRate: 1.85,
   });
+
+  const trust = useCustomerTrust(manualData.phone);
 
 // ⚡ SMART DETECTION LOGIC
   useEffect(() => {
@@ -484,15 +487,60 @@ const SmartForm = () => {
           onChange={(e) => setManualData({...manualData, name: e.target.value})}
           className="p-2 border rounded font-bold text-gray-700"
         />
-        <input 
-          type="text" placeholder="Phone" 
+        <input
+          type="text" placeholder="Phone"
           value={manualData.phone}
           onChange={(e) => setManualData({...manualData, phone: e.target.value})}
           className="p-2 border rounded font-bold text-gray-700"
         />
       </div>
 
-      <input 
+      {/* Customer Trust Badge */}
+      {trust.checked && (
+        <div className="mt-1 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+             style={{
+               background: trust.trustLevel === 'safe'    ? 'rgba(26,158,106,0.08)'  :
+                           trust.trustLevel === 'caution' ? 'rgba(232,184,75,0.08)' :
+                           trust.trustLevel === 'warning' ? 'rgba(232,184,75,0.10)' :
+                                                            'rgba(217,64,64,0.10)',
+               color:      trust.trustLevel === 'safe'    ? '#1A9E6A' :
+                           trust.trustLevel === 'caution' ? '#9A6F00' :
+                           trust.trustLevel === 'warning' ? '#9A6F00' :
+                                                            '#D94040',
+               border: `1px solid ${
+                           trust.trustLevel === 'safe'    ? 'rgba(26,158,106,0.2)'  :
+                           trust.trustLevel === 'caution' ? 'rgba(232,184,75,0.3)'  :
+                           trust.trustLevel === 'warning' ? 'rgba(232,184,75,0.35)' :
+                                                            'rgba(217,64,64,0.25)'
+               }`
+             }}>
+          <span>
+            {trust.trustLevel === 'safe'    ? '✅' :
+             trust.trustLevel === 'caution' ? '⚠️' :
+             trust.trustLevel === 'warning' ? '⚠️' :
+                                              '🔴'}
+          </span>
+          <span>
+            {trust.trustLevel === 'safe' &&
+              `No return history - ${trust.ownTotalCount} previous order${trust.ownTotalCount !== 1 ? 's' : ''}`}
+            {trust.trustLevel === 'caution' &&
+              `Caution: ${trust.ownReturnCount} return${trust.ownReturnCount !== 1 ? 's' : ''} in your shop - verify before confirming`}
+            {trust.trustLevel === 'warning' &&
+              `Community flagged: reported by ${trust.communityReports} seller${trust.communityReports !== 1 ? 's' : ''} - demand advance payment`}
+            {trust.trustLevel === 'danger' &&
+              `High Risk: ${trust.ownReturnCount > 0 ? trust.ownReturnCount + ' returns in your shop' : ''}${trust.ownReturnCount > 0 && trust.communityReports > 0 ? ' + ' : ''}${trust.communityReports > 0 ? 'flagged by ' + trust.communityReports + ' seller' + (trust.communityReports !== 1 ? 's' : '') : ''} - demand advance bKash payment`}
+          </span>
+        </div>
+      )}
+
+      {trust.loading && (
+        <div className="mt-1 px-3 py-1 rounded-xl text-xs"
+             style={{ color: 'rgba(15,31,61,0.4)' }}>
+          Checking customer history...
+        </div>
+      )}
+
+      <input
         type="text" placeholder="Address" 
         value={manualData.address}
         onChange={(e) => setManualData({...manualData, address: e.target.value})}

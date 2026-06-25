@@ -13,6 +13,8 @@ import {
   XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
 } from 'recharts';
+import ReturnRateWidget from '../../../features/analytics/components/ReturnRateWidget';
+import SKUReturnTable from '../../../features/analytics/components/SKUReturnTable';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -340,6 +342,20 @@ const Dashboard = () => {
           </p>
           <p className="text-[11px] mt-0.5" style={{ color: '#8BA0BC' }}>Returned orders</p>
         </div>
+      </div>
+
+      {/* Return Rate Analytics */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-bold mb-1" style={{ color: '#0F1F3D' }}>
+            Delivery & Return Analytics
+          </p>
+          <p className="text-xs" style={{ color: 'rgba(15,31,61,0.45)' }}>
+            Based on all orders marked Delivered or Returned
+          </p>
+        </div>
+        <ReturnRateWidget />
+        <SKUReturnTable />
       </div>
 
       {/* CHARTS ROW */}

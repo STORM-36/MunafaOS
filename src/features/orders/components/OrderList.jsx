@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '../../../firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, increment } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import Receipt from './Receipt'; // 👈 Import Receipt
 import { useAuth } from '../../auth/context/AuthContext';
 import { logAudit } from '../../../shared/utils/auditLogger';
 import ConfirmModal from "../../../components/ConfirmModal";
+import { useToast } from '../../../shared/components/Toast/ToastContext';
 
 const PAGE_SIZE = 20;
 
@@ -33,6 +34,8 @@ const OrderList = ({ onOpenNewOrder }) => {
   });
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
   const filterChangedByUser = useRef(false);
+  const toast = useToast();
+  const [reportPrompt, setReportPrompt] = useState(null);
 
 
 
@@ -231,13 +234,20 @@ const OrderList = ({ onOpenNewOrder }) => {
   // 2. 🟢 STATUS CHANGER (Pending -> Delivered -> Returned)
   const handleStatusChange = async (orderId, newStatus) => {
     try {
+      if (newStatus === 'Returned') {
+        const order = allOrders.find(o => o.id === orderId);
+        if (order?.phone) {
+          setReportPrompt({ orderId, phone: order.phone, name: order.name || 'this customer' });
+        }
+      }
+
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, {
         status: newStatus
       });
 
       // Update allOrders state locally to avoid re-fetch
-      setAllOrders(prev => prev.map(o => 
+      setAllOrders(prev => prev.map(o =>
         o.id === orderId ? { ...o, status: newStatus } : o
       ));
 
@@ -256,6 +266,26 @@ const OrderList = ({ onOpenNewOrder }) => {
     } catch (error) {
       console.error("Error updating order status:", error);
     }
+  };
+
+  // Community blacklist report handlers
+  const handleReport = async () => {
+    const { phone } = reportPrompt;
+    setReportPrompt(null);
+    try {
+      await setDoc(doc(db, 'community_blacklist', phone), {
+        totalReports: increment(1)
+      }, { merge: true });
+      toast.success('Customer reported to Community Blacklist');
+    } catch (err) {
+      console.error('Failed to report to community blacklist:', err);
+      toast.error('Failed to report. Please try again.');
+    }
+  };
+
+  const handleSkip = () => {
+    setReportPrompt(null);
+    toast.info('Order marked Returned. Customer not reported.');
   };
 
   // 3. 🗑️ DELETE FUNCTION
@@ -471,6 +501,37 @@ const OrderList = ({ onOpenNewOrder }) => {
 
   return (
     <div id="orders-list-top" className="w-full relative font-sans text-[#0F1F3D]">
+
+      {/* Community Blacklist Opt-in Card */}
+      {reportPrompt && (
+        <div className="fixed bottom-6 right-6 z-50 bg-white rounded-2xl shadow-xl p-5 max-w-sm"
+             style={{ border: '1px solid rgba(15,31,61,0.12)' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: '#0F1F3D' }}>
+            Report to Community Blacklist?
+          </p>
+          <p className="text-xs mb-4" style={{ color: 'rgba(15,31,61,0.55)' }}>
+            Help other MunafaOS sellers identify high-risk customers.
+            Anonymous — no seller name is shared.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleReport}
+              className="flex-1 py-2 rounded-xl text-xs font-bold text-white"
+              style={{ background: '#D94040' }}>
+              Yes, Report
+            </button>
+            <button
+              onClick={handleSkip}
+              className="flex-1 py-2 rounded-xl text-xs font-bold"
+              style={{ background: '#F6F8FC',
+                       color: 'rgba(15,31,61,0.6)',
+                       border: '1px solid rgba(15,31,61,0.12)' }}>
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         type={confirmModal.type}
@@ -1045,6 +1106,7 @@ const OrderList = ({ onOpenNewOrder }) => {
               </div>
             </div>
           )}
+
     </div>
   );
 };
