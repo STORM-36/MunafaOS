@@ -16,6 +16,7 @@ import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 
 // Lazy load components
 const Settings = lazy(() => import('../features/settings/pages/Settings'));
+const AnalyticsPage = lazy(() => import('../features/analytics/pages/AnalyticsPage'));
 import { validateThirdPartyLibraries } from '../utils/validateLibraries';
 
 const LoadingComponent = () => (
@@ -60,6 +61,14 @@ function App() {
         <Route path="/ocr-scanner" element={<OCRScanner />} />
         <Route path="/bulk-import" element={<BulkImport />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route
+          path="/analytics"
+          element={
+            <Suspense fallback={<LoadingComponent />}>
+              <AnalyticsPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/team"
           element={

@@ -19,6 +19,7 @@ import { CATEGORY_OPTIONS } from '../../../shared/utils/categories';
 import { useAuth } from '../../auth/context/AuthContext';
 import { logAudit } from '../../../shared/utils/auditLogger';
 import { useToast } from '../../../shared/components/Toast/ToastContext';
+import { createNotification } from '../../../shared/utils/notificationService';
 import useCustomerTrust from '../../../features/analytics/hooks/useCustomerTrust';
 
 // 🛡️ INPUT SANITIZATION - Prevents XSS and injection attacks
@@ -416,6 +417,16 @@ const SmartForm = () => {
             quantity: increment(-orderQuantity)
           });
           console.log('Successfully deducted stock for inventoryId:', inventoryId);
+            const newQty = (availableStock || 0) - orderQuantity;
+            if (newQty <= 3) {
+              await createNotification(
+                workspaceId,
+                'low_stock',
+                'Low Stock Alert',
+                `${selectedInventoryItem?.name || 'Product'} has ${Math.max(0, newQty)} units remaining`,
+                inventoryId
+              );
+            }
         } else {
           console.error('Inventory deduction skipped: inventoryId missing for order', {
             orderId: createdOrder.id,

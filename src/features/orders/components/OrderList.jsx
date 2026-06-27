@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { logAudit } from '../../../shared/utils/auditLogger';
 import ConfirmModal from "../../../components/ConfirmModal";
 import { useToast } from '../../../shared/components/Toast/ToastContext';
+import { createNotification } from '../../../shared/utils/notificationService';
 
 const PAGE_SIZE = 20;
 
@@ -250,6 +251,17 @@ const OrderList = ({ onOpenNewOrder }) => {
       setAllOrders(prev => prev.map(o =>
         o.id === orderId ? { ...o, status: newStatus } : o
       ));
+
+        if (newStatus === 'Delivered' || newStatus === 'Returned') {
+          const notifOrder = allOrders.find(o => o.id === orderId);
+          await createNotification(
+            currentUser?.workspaceId,
+            newStatus === 'Delivered' ? 'order_delivered' : 'order_returned',
+            newStatus === 'Delivered' ? 'Order Delivered' : 'Order Returned',
+            `${notifOrder?.name || 'Customer'} · ${notifOrder?.productName || 'Product'}`,
+            orderId
+          );
+        }
 
       if (currentUser) {
         try {

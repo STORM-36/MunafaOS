@@ -24,6 +24,7 @@ const AppLayout = () => {
     if (location.pathname.startsWith('/bulk-import')) return 'Bulk Import';
     if (location.pathname.startsWith('/ocr-scanner')) return 'OCR Scanner';
     if (location.pathname.startsWith('/settings')) return 'Settings';
+    if (location.pathname.startsWith('/analytics')) return 'Analytics';
     if (location.pathname.startsWith('/dashboard')) return 'Dashboard';
     return 'MunafaOS';
   })();
@@ -174,14 +175,10 @@ const AppLayout = () => {
 
             <p className="text-[9px] text-[#6D7690] font-bold tracking-[1.2px] mt-6 mb-2 uppercase">Insights</p>
             <nav>
-              <Link
-                to="#"
-                onClick={closeMobileMenu}
-                className={`${sidebarLinkBase} px-3 py-2 text-sm text-[#0F1F3D] hover:bg-[#F6F8FC] rounded-[10px]`}
-              >
+              <NavLink to="/analytics" onClick={closeMobileMenu} className={navItemClass}>
                 <div className="flex items-center gap-2"><BarChart3 size={16} /><span>Analytics</span></div>
                 <span />
-              </Link>
+              </NavLink>
             </nav>
           </div>
 

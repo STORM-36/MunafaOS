@@ -23,6 +23,9 @@ import { logAudit } from "../../../shared/utils/auditLogger";
 import { useNavigate } from "react-router-dom";
 import { Package, BarChart2, TrendingDown, TrendingUp, AlertTriangle, Search, Plus, Edit2, Trash2, Eye } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import SmartStockAlerts from '../../analytics/components/SmartStockAlerts';
+import { useSmartStockAlerts } from '../../analytics/hooks/useSmartStockAlerts';
+import { createNotification } from '../../../shared/utils/notificationService';
 
 const PAGE_SIZE = 50;
 
@@ -43,12 +46,6 @@ const InventoryList = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalItemsCount, setTotalItemsCount] = useState(0);
-  const [totalLowCritical, setTotalLowCritical] = useState(0);
-  const [totalOutOfStock, setTotalOutOfStock] = useState(0);
-  const [totalInventoryValue, setTotalInventoryValue] = useState(0);
-  const [lowStockItems, setLowStockItems] = useState([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lastVisibleDoc, setLastVisibleDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -94,44 +91,11 @@ const InventoryList = () => {
   });
 
   const effectiveWorkspaceId = workspaceId || currentUser?.uid || null;
+  const { stats } = useSmartStockAlerts();
+  const totalItemsCount = useMemo(() => inventory.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0), [inventory]);
+  const totalInventoryValue = useMemo(() => inventory.reduce((sum, i) => sum + ((Number(i.quantity) || 0) * (Number(i.buyingPrice) || 0)), 0), [inventory]);
   const navigate = useNavigate();
 
-  const fetchInventoryStats = async () => {
-    if (!effectiveWorkspaceId) return;
-    try {
-      const allItemsSnap = await getDocs(
-        query(
-          collection(db, "inventory"),
-          where("workspaceId", "==", effectiveWorkspaceId)
-        )
-      );
-      const docs = allItemsSnap.docs;
-      setTotalCount(docs.length);
-      const totalQty = docs.reduce((sum, d) => sum + (d.data().quantity || 0), 0);
-      const lowCritical = docs.filter((d) => {
-        const q = d.data().quantity || 0;
-        return q > 0 && q <= 5;
-      }).length;
-      const outOfStock = docs.filter((d) => (d.data().quantity || 0) === 0).length;
-      const inventoryValue = docs.reduce(
-        (sum, d) => sum + ((d.data().quantity || 0) * (d.data().buyingPrice || 0)), 0
-      );
-      const lowItems = docs
-        .filter((d) => (d.data().quantity || 0) <= 3)
-        .map((d) => ({ id: d.id, ...d.data() }));
-      setTotalItemsCount(totalQty);
-      setTotalLowCritical(lowCritical);
-      setTotalOutOfStock(outOfStock);
-      setTotalInventoryValue(inventoryValue);
-      setLowStockItems(lowItems);
-    } catch (error) {
-      console.error("Error fetching inventory stats:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchInventoryStats();
-  }, [effectiveWorkspaceId, inventory.length, inventory]);
 
   const fetchPage = async (isInitialLoad = false) => {
     if (!effectiveWorkspaceId) {
@@ -209,8 +173,7 @@ const InventoryList = () => {
     const initialQuery = query(
       collection(db, "inventory"),
       where("workspaceId", "==", effectiveWorkspaceId),
-      orderBy("timestamp", "desc"),
-      limit(PAGE_SIZE)
+      orderBy("timestamp", "desc")
     );
 
     const unsubscribe = onSnapshot(
@@ -231,7 +194,6 @@ const InventoryList = () => {
         setHasMore(snapshot.docs.length === PAGE_SIZE);
         setInitialFetchError("");
         setLoading(false);
-        fetchInventoryStats();
       },
       (error) => {
         console.error("Error subscribing to inventory:", error);
@@ -454,6 +416,17 @@ const InventoryList = () => {
         }
       }
 
+      console.log('[NOTIF DEBUG] qty result:', currentQty - qty, 'workspaceId:', currentUser?.workspaceId);
+      if ((currentQty - qty) <= 3) {
+        await createNotification(
+          workspaceId,
+          'low_stock',
+          'Low Stock Alert',
+          `${item?.name || 'Product'} has ${Math.max(0, currentQty - qty)} units remaining`,
+          removeStockItemId
+        );
+      }
+
       setRemoveStockItemId(null);
       setRemoveStockQty("");
       setRemoveStockReason("Damaged");
@@ -580,7 +553,7 @@ const InventoryList = () => {
         {[
           {
             label: "Total SKUs",
-            value: totalCount,
+            value: stats.totalProducts,
             icon: Package,
             bg: "bg-[#0F1F3D]/5",
             iconColor: "text-[#0F1F3D]",
@@ -594,14 +567,14 @@ const InventoryList = () => {
           },
           {
             label: "Low / Critical",
-            value: totalLowCritical,
+            value: stats.lowCriticalCount,
             icon: TrendingDown,
             bg: "bg-amber-50",
             iconColor: "text-amber-600",
           },
           {
             label: "Out of Stock",
-            value: totalOutOfStock,
+            value: stats.outOfStockCount,
             icon: AlertTriangle,
             bg: "bg-red-50",
             iconColor: "text-red-500",
@@ -624,35 +597,14 @@ const InventoryList = () => {
         ))}
       </div>
 
-      {/* ── LOW STOCK ALERT BANNER ── */}
-      {lowStockItems.length > 0 && (
-        <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={15} className="text-red-500" />
-            <span className="text-red-700 text-sm font-semibold">
-              {lowStockItems.length} items need immediate restocking
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {lowStockItems.slice(0, 8).map((a) => (
-              <button
-                key={a.id}
-                onClick={() => {
-                  setAddStockItemId(a.id);
-                  setAddStockQty("");
-                  setAddStockError("");
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-red-100 text-xs text-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all cursor-pointer group"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${(a.quantity || 0) === 0 ? "bg-slate-400" : "bg-red-500"}`} />
-                <span className="group-hover:font-semibold transition-all">{a.name}</span>
-                <span className="text-slate-400 group-hover:text-red-400">· {a.quantity || 0} left</span>
-                <span className="ml-1 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">+ Add Stock</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── SMART STOCK ALERTS ── */}
+      <SmartStockAlerts
+        onAddStock={(id) => {
+          setAddStockItemId(id);
+          setAddStockQty("");
+          setAddStockError("");
+        }}
+      />
 
       {/* ── TABLE CARD ── */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -740,7 +692,7 @@ const InventoryList = () => {
           </button>
 
           <span className="ml-auto text-xs text-slate-400">
-            {filteredInventory.length} of {totalCount} products
+            {filteredInventory.length} of {stats.totalProducts} products
           </span>
         </div>
 
@@ -891,7 +843,7 @@ const InventoryList = () => {
               disabled={isLoadingMore}
               className="px-4 py-2 rounded-xl text-sm text-[#0F1F3D] border border-[#0F1F3D]/20 hover:bg-[#0F1F3D]/5 disabled:opacity-40 transition-colors"
             >
-              {isLoadingMore ? "Loading…" : `Load More (${totalCount - inventory.length} remaining)`}
+              {isLoadingMore ? "Loading…" : `Load More (${stats.totalProducts - inventory.length} remaining)`}
             </button>
           </div>
         )}

@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where, orderBy, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { logAudit } from '../../../shared/utils/auditLogger';
+import { createNotification } from '../../../shared/utils/notificationService';
 import ConfirmModal from "../../../components/ConfirmModal";
 
 const TeamManagement = () => {
@@ -153,6 +154,14 @@ const TeamManagement = () => {
           console.error(err);
         }
       }
+
+        await createNotification(
+          workspaceId,
+          'member_joined',
+          'New Team Member Added',
+          `${firstName} ${lastName} joined as ${formData.role}`,
+          createdMember.id
+        );
 
       setFormData({
         firstName: '',
