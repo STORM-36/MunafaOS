@@ -416,7 +416,6 @@ const InventoryList = () => {
         }
       }
 
-      console.log('[NOTIF DEBUG] qty result:', currentQty - qty, 'workspaceId:', currentUser?.workspaceId);
       if ((currentQty - qty) <= 3) {
         await createNotification(
           workspaceId,

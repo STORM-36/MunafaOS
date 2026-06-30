@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import MunafaLogo from '../components/MunafaLogo';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { LayoutDashboard, ShoppingBag, Package, Upload, ScanLine, BarChart3, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Upload, ScanLine, BarChart3, Bot, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { useNotifications } from '../features/notifications/hooks/useNotifications';
 import { db } from '../firebase';
 
 const AppLayout = () => {
   const { currentUser } = useAuth();
+  const { unreadCount } = useNotifications();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
   const [inventoryCount, setInventoryCount] = useState(0);
@@ -26,6 +28,7 @@ const AppLayout = () => {
     if (location.pathname.startsWith('/settings')) return 'Settings';
     if (location.pathname.startsWith('/analytics')) return 'Analytics';
     if (location.pathname.startsWith('/dashboard')) return 'Dashboard';
+    if (location.pathname.startsWith('/ai-assistant')) return 'AI Assistant';
     return 'MunafaOS';
   })();
 
@@ -171,6 +174,10 @@ const AppLayout = () => {
                 <div className="flex items-center gap-2"><ScanLine size={16} /><span>OCR Scanner</span></div>
                 <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-2 py-0.5 rounded-full">AI</span>
               </NavLink>
+              <NavLink to="/ai-assistant" onClick={closeMobileMenu} className={navItemClass}>
+                <div className="flex items-center gap-2"><Bot size={16} /><span>AI Assistant</span></div>
+                <span className="text-[10px] font-bold bg-[#5B4FCF] text-white px-2 py-0.5 rounded-full">AI</span>
+              </NavLink>
             </nav>
 
             <p className="text-[9px] text-[#6D7690] font-bold tracking-[1.2px] mt-6 mb-2 uppercase">Insights</p>
@@ -262,9 +269,9 @@ const AppLayout = () => {
                 aria-label="Notifications"
               >
                 🔔
-                {(pendingCount > 0 || lowStockCount > 0) && (
+                {unreadCount > 0 && (
                   <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-[#D94040] text-white text-[9px] font-bold flex items-center justify-center">
-                    {pendingCount + lowStockCount > 9 ? '9+' : pendingCount + lowStockCount}
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </button>

@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AuthForm from '../features/auth/components/AuthForm';
 import Unauthorized from '../features/auth/components/Unauthorized';
@@ -11,29 +11,33 @@ import OCRScanner from '../features/inventory/pages/OCRScanner';
 import BulkImport from '../features/inventory/pages/BulkImport';
 import Notifications from '../features/notifications/pages/Notifications';
 import AppLayout from '../layouts/AppLayout';
+import LoadingScreen from '../shared/components/LoadingScreen';
 import { useAuth } from '../features/auth/context/AuthContext';
 import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 
 // Lazy load components
 const Settings = lazy(() => import('../features/settings/pages/Settings'));
 const AnalyticsPage = lazy(() => import('../features/analytics/pages/AnalyticsPage'));
+const AIAssistant = lazy(() => import('../features/ai/pages/AIAssistant'));
 import { validateThirdPartyLibraries } from '../utils/validateLibraries';
-
-const LoadingComponent = () => (
-  <div className="flex items-center justify-center p-10">
-    <p className="text-gray-500">⏳ Loading...</p>
-  </div>
-);
 
 function App() {
   const { currentUser, loading } = useAuth();
+  const [phase, setPhase] = useState('loading');
 
   useEffect(() => {
     validateThirdPartyLibraries();
   }, []);
 
-  if (loading) {
-    return <LoadingComponent />;
+  useEffect(() => {
+    if (!loading && phase === 'loading') {
+      setPhase('launching');
+      setTimeout(() => setPhase('ready'), 1400);
+    }
+  }, [loading, phase]);
+
+  if (phase !== 'ready') {
+    return <LoadingScreen launching={phase === 'launching'} />;
   }
 
   return (
@@ -64,8 +68,16 @@ function App() {
         <Route
           path="/analytics"
           element={
-            <Suspense fallback={<LoadingComponent />}>
+            <Suspense fallback={<LoadingScreen />}>
               <AnalyticsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/ai-assistant"
+          element={
+            <Suspense fallback={<LoadingScreen />}>
+              <AIAssistant />
             </Suspense>
           }
         />
@@ -81,7 +93,7 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute allowedRoles={['owner', 'operator']}>
-              <Suspense fallback={<LoadingComponent />}>
+              <Suspense fallback={<LoadingScreen />}>
                 <Settings />
               </Suspense>
             </ProtectedRoute>

@@ -80,6 +80,16 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      if (!user.emailVerified && user.providerData?.[0]?.providerId === 'password') {
+        await signOut(auth);
+        setCurrentUser(null);
+        setUserRole(null);
+        setWorkspaceId(null);
+        previousUserIdRef.current = null;
+        setLoading(false);
+        return;
+      }
+
       previousUserIdRef.current = user.uid;
 
       try {
@@ -121,9 +131,12 @@ export const AuthProvider = ({ children }) => {
         } else {
           const fallbackProfile = {
             email: user.email || '',
-            role: 'operator',
+            role: 'owner',
             workspaceId: user.uid,
             status: 'Online',
+            tokenBalance: 250,
+            plan: 'free',
+            tokenResetAt: null,
             lastLogin: serverTimestamp(),
             createdAt: serverTimestamp()
           };

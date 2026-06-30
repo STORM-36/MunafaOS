@@ -62,6 +62,9 @@ const AuthForm = () => {
         email: user.email || '',
         role: 'owner',
         workspaceId: user.uid,
+        tokenBalance: 250,
+        plan: 'free',
+        tokenResetAt: null,
         createdAt: serverTimestamp()
       });
     }
@@ -74,7 +77,13 @@ const AuthForm = () => {
 
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const loginResult = await signInWithEmailAndPassword(auth, email, password);
+        if (!loginResult.user.emailVerified) {
+          await signOut(auth);
+          toast.warning('Please verify your email first. Check your inbox (and spam folder) for the verification link.');
+          setLoading(false);
+          return;
+        }
         navigate('/dashboard', { replace: true });
       } else {
         if (password !== confirmPassword) {
