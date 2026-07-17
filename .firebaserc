@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "profit-optimizer-v1"
-  }
+  },
+  "targets": {
+    "profit-optimizer-v1": {
+      "hosting": {
+        "app": [
+          "profit-optimizer-v1"
+        ],
+        "marketing": [
+          "munafaos-marketing"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
