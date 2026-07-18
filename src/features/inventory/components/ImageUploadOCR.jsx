@@ -2,8 +2,11 @@
 import React, { useState } from "react";
 import { parseProductFromImage } from "../../../services/aiService";
 import { useToast } from "../../../shared/components/Toast/ToastContext";
+import { useAuth } from '../../../features/auth/context/AuthContext';
+import { checkTokenBalance, deductTokens } from '../../../shared/utils/tokenService';
 
 const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
+  const { currentUser } = useAuth();
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -55,7 +58,9 @@ const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
     console.log("🔍 Starting image OCR...");
 
     try {
+      await checkTokenBalance(currentUser, 3);
       const extractedData = await parseProductFromImage(selectedImage);
+      await deductTokens(currentUser, 3);
 
       if (extractedData) {
         console.log("✅ Successfully extracted:", extractedData);
@@ -83,6 +88,11 @@ const ImageUploadOCR = ({ onDataExtracted, multiple = false }) => {
         toast.warning('Could not extract data from image. Try a clearer photo.');
       }
     } catch (error) {
+      if (error.message === 'insufficient_tokens') {
+        toast.error('Not enough tokens. You need 3 tokens for OCR scan.');
+        setIsExtracting(false);
+        return;
+      }
       console.error("OCR Error:", error);
       toast.error('Image processing failed: ' + error.message);
     } finally {

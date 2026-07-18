@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { Upload, Sparkles, Brain, CheckCircle2, RefreshCw, Zap, FileText, X } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
 import { useToast } from "../../../shared/components/Toast/ToastContext";
+import { checkTokenBalance, deductTokens } from '../../../shared/utils/tokenService';
 
 const BulkImport = () => {
   const { currentUser, workspaceId } = useAuth();
@@ -72,6 +73,13 @@ const BulkImport = () => {
     if (!currentUser || !effectiveWorkspaceId) { toast.warning('Please login first.'); return; }
     if (!bulkItems.length) { toast.warning('No items to save.'); return; }
 
+    try {
+      await checkTokenBalance(currentUser, 3);
+    } catch {
+      toast.error('Not enough tokens. You need 3 tokens for bulk import.');
+      return;
+    }
+
     const batch = writeBatch(db);
     const userId = currentUser.uid;
     const supplierName = String(bulkSupplier.supplierName || "").trim();
@@ -114,6 +122,7 @@ const BulkImport = () => {
 
     try {
       await batch.commit();
+      await deductTokens(currentUser, 3);
       if (currentUser) {
         try {
           await logAudit(

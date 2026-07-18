@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   collection, query, where, orderBy, limit,
-  getDocs, getDoc, doc, updateDoc, setDoc, serverTimestamp, increment
+  getDocs, doc, setDoc, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../auth/context/AuthContext';
 import { sendChatMessage } from '../services/aiChatService';
+import { checkTokenBalance, deductTokens } from '../../../shared/utils/tokenService';
 
 const generateSessionId = () =>
   `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -44,14 +45,15 @@ export const useAISession = () => {
 
       const allOrders = ordersSnap.docs.map(d => d.data());
       const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      const recent = allOrders.filter(o => (o.createdAt?.toMillis?.() || 0) >= cutoff);
+      const orderMillis = (o) => o.timestamp?.toMillis?.() ?? o.createdAt?.toMillis?.() ?? 0;
+      const recent = allOrders.filter(o => orderMillis(o) >= cutoff);
 
       const delivered = recent.filter(o => o.status === 'Delivered');
       const returned  = recent.filter(o => o.status === 'Returned');
       const shipped   = delivered.length + returned.length;
 
-      const revenue   = delivered.reduce((s, o) => s + (o.grossRevenue || 0), 0);
-      const netProfit = delivered.reduce((s, o) => s + (o.trueNetProfit || o.netProfit || 0), 0);
+      const revenue   = recent.reduce((s, o) => s + (o.totalRevenue || o.grossRevenue || 0), 0);
+      const netProfit = recent.reduce((s, o) => s + (o.trueNetProfit || o.finalProfit || o.netProfit || 0), 0);
       const returnRate = shipped > 0
         ? ((returned.length / shipped) * 100).toFixed(1)
         : '0.0';
@@ -70,6 +72,15 @@ export const useAISession = () => {
       const topChannels = Object.entries(channelMap)
         .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c);
 
+      const allDelivered = allOrders.filter(o => o.status === 'Delivered');
+      const allReturned  = allOrders.filter(o => o.status === 'Returned');
+      const allShipped   = allDelivered.length + allReturned.length;
+      const allTimeRevenue   = allOrders.reduce((s, o) => s + (o.totalRevenue || o.grossRevenue || 0), 0);
+      const allTimeNetProfit = allOrders.reduce((s, o) => s + (o.trueNetProfit || o.finalProfit || o.netProfit || 0), 0);
+      const allTimeReturnRate = allShipped > 0
+        ? ((allReturned.length / allShipped) * 100).toFixed(1) : '0.0';
+      const pendingCount = allOrders.filter(o => !o.status || (o.status !== 'Delivered' && o.status !== 'Returned')).length;
+
       const inventory = invSnap.docs.map(d => d.data());
       const lowStockCount = inventory.filter(i => (i.quantity || 0) <= 3).length;
 
@@ -82,6 +93,11 @@ export const useAISession = () => {
         inventoryCount: inventory.length,
         topCities,
         topChannels,
+        allTimeOrderCount: allOrders.length,
+        allTimeRevenue: Math.round(allTimeRevenue),
+        allTimeNetProfit: Math.round(allTimeNetProfit),
+        allTimeReturnRate,
+        pendingCount,
       });
     } catch (err) {
       console.error('Business context fetch failed:', err);
@@ -120,14 +136,6 @@ export const useAISession = () => {
     await setDoc(doc(db, 'ai_sessions', sessionId), data, { merge: true });
   };
 
-  const deductTokens = async () => {
-    const userRef  = doc(db, 'users', currentUser.uid);
-    const userSnap = await getDoc(userRef);
-    const balance  = userSnap.data()?.tokenBalance ?? 0;
-    if (balance < 5) throw new Error('insufficient_tokens');
-    await updateDoc(userRef, { tokenBalance: increment(-5) });
-  };
-
   const sendMessage = useCallback(async (text) => {
     if (!text?.trim() || loading) return;
     setError(null);
@@ -140,12 +148,16 @@ export const useAISession = () => {
     try {
       const isNew = !tokenCharged;
       if (isNew) {
-        await deductTokens();
-        setTokenCharged(true);
+        await checkTokenBalance(currentUser, 5);
       }
 
       const history = messages.map(m => ({ role: m.role, content: m.content }));
       const reply   = await sendChatMessage(history, text.trim(), businessContext);
+
+      if (isNew) {
+        await deductTokens(currentUser, 5);
+        setTokenCharged(true);
+      }
 
       const aiMsg   = { role: 'model', content: reply, timestamp: Date.now() };
       const final   = [...withUser, aiMsg];

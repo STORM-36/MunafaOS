@@ -80,16 +80,6 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      if (!user.emailVerified && user.providerData?.[0]?.providerId === 'password') {
-        await signOut(auth);
-        setCurrentUser(null);
-        setUserRole(null);
-        setWorkspaceId(null);
-        previousUserIdRef.current = null;
-        setLoading(false);
-        return;
-      }
-
       previousUserIdRef.current = user.uid;
 
       try {

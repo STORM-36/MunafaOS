@@ -109,6 +109,34 @@ service cloud.firestore {
     }
 
     // ============================================
+    // NOTIFICATIONS (Phase 4)
+    // ============================================
+    match /notifications/{notificationId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow create: if isWorkspaceMember(request.resource.data.workspaceId);
+      // Mark as read only — workspaceId cannot change
+      allow update: if isWorkspaceMember(resource.data.workspaceId) &&
+        request.resource.data.workspaceId == resource.data.workspaceId;
+      allow delete: if isOwner() && isWorkspaceMember(resource.data.workspaceId);
+    }
+
+    // ============================================
+    // AI SESSIONS (Phase 4)
+    // ============================================
+    match /ai_sessions/{sessionId} {
+      allow read: if isWorkspaceMember(resource.data.workspaceId);
+      allow create: if isWorkspaceMember(request.resource.data.workspaceId) &&
+        request.resource.data.userId == request.auth.uid;
+      // Session owner appends messages — workspaceId and userId immutable
+      allow update: if isWorkspaceMember(resource.data.workspaceId) &&
+        request.auth.uid == resource.data.userId &&
+        request.resource.data.workspaceId == resource.data.workspaceId &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isWorkspaceMember(resource.data.workspaceId) &&
+        (request.auth.uid == resource.data.userId || isOwner());
+    }
+
+    // ============================================
     // CATCH-ALL
     // ============================================
     match /{document=**} {

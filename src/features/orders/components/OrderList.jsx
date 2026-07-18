@@ -8,6 +8,7 @@ import { logAudit } from '../../../shared/utils/auditLogger';
 import ConfirmModal from "../../../components/ConfirmModal";
 import { useToast } from '../../../shared/components/Toast/ToastContext';
 import { createNotification } from '../../../shared/utils/notificationService';
+import { checkTokenBalance, deductTokens } from '../../../shared/utils/tokenService';
 
 const PAGE_SIZE = 20;
 
@@ -452,10 +453,18 @@ const OrderList = ({ onOpenNewOrder }) => {
       };
     });
 
+    try {
+      await checkTokenBalance(currentUser, 2);
+    } catch {
+      toast.error('Not enough tokens. You need 2 tokens for Excel export.');
+      return;
+    }
+
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Profit Report");
     XLSX.writeFile(workbook, "Profit_Optimizer_Report.xlsx");
+    await deductTokens(currentUser, 2);
   };
 
   if (loading) {

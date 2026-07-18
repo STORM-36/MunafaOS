@@ -189,7 +189,8 @@ const Dashboard = () => {
         const deliveredOrders = orders.filter(o => o.status === 'Delivered').length;
         const returnedOrders = orders.filter(o => o.status === 'Returned').length;
         const cpa = orders.length > 0 ? Math.round(adSpendTotal / orders.length) : 0;
-        const rRate = orders.length > 0 ? ((returnedOrders / orders.length) * 100).toFixed(1) : 0;
+        const shippedOrders = deliveredOrders + returnedOrders;
+        const rRate = shippedOrders > 0 ? ((returnedOrders / shippedOrders) * 100).toFixed(1) : 0;
         setCpaValue(cpa);
         setReturnRate(rRate);
         setDeliveredCount(deliveredOrders);
@@ -326,9 +327,9 @@ const Dashboard = () => {
           <p className="text-[11px] mt-0.5" style={{ color: '#8BA0BC' }}>Across all orders</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(15,31,61,0.09)' }}>
-          <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: '#6D7690' }}>Cost Per Order</p>
+          <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: '#6D7690' }}>Tracked Ad Cost Per Order</p>
           <p className="text-xl font-extrabold" style={{ color: '#0F1F3D' }}>{formatCurrency(cpaValue)}</p>
-          <p className="text-[11px] mt-0.5" style={{ color: '#8BA0BC' }}>Ad spend ÷ orders</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#8BA0BC' }}>Manually entered ad spend ÷ orders</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(15,31,61,0.09)' }}>
           <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: '#6D7690' }}>Delivered</p>

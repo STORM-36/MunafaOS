@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import MunafaLogo from '../components/MunafaLogo';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { LayoutDashboard, ShoppingBag, Package, Upload, ScanLine, BarChart3, Bot, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { useNotifications } from '../features/notifications/hooks/useNotifications';
@@ -16,6 +16,8 @@ const AppLayout = () => {
   const [pendingCount, setPendingCount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [showNotif, setShowNotif] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState(0);
+  const [showTokenMenu, setShowTokenMenu] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -107,6 +109,28 @@ const AppLayout = () => {
       'mousedown', handleClickOutside
     );
   }, [showNotif]);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    const userRef = doc(db, 'users', currentUser.uid);
+    const unsub = onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        setTokenBalance(snap.data()?.tokenBalance ?? 0);
+      }
+    });
+    return () => unsub();
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (!showTokenMenu) return;
+    const handler = (e) => {
+      if (!e.target.closest('#token-menu-container')) {
+        setShowTokenMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showTokenMenu]);
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
@@ -403,18 +427,68 @@ const AppLayout = () => {
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => navigate('/settings')}
-                className="h-10 rounded-full border border-[rgba(15,31,61,0.09)] bg-white px-3 flex items-center gap-2"
-              >
-                <span className="h-7 w-7 rounded-full bg-[#EEF0FF] text-[#5B4FCF] text-xs font-bold flex items-center justify-center">
-                  {(currentUser?.displayName || currentUser?.firstName || currentUser?.email || 'U').charAt(0).toUpperCase()}
-                </span>
-                <span className="text-xs font-semibold text-[#0F1F3D] hidden sm:inline">
-                  {currentUser?.displayName || currentUser?.firstName || currentUser?.email?.split('@')[0] || 'User'}
-                </span>
-              </button>
+              {/* ── Token Balance Badge ── */}
+              <div id="token-menu-container" className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowTokenMenu(!showTokenMenu)}
+                  className="h-10 rounded-xl border border-[rgba(15,31,61,0.09)] bg-white px-3 flex items-center gap-1.5"
+                  aria-label="Token balance"
+                >
+                  <span className="text-base leading-none">🪙</span>
+                  <span className="text-xs font-bold text-[#E8B84B]">{tokenBalance}</span>
+                  <span className="text-[11px] text-[#0F1F3D] opacity-50 hidden sm:inline">tokens</span>
+                </button>
+
+                {showTokenMenu && (
+                  <div
+                    className="absolute right-0 top-12 z-50 w-72 rounded-xl border border-[rgba(15,31,61,0.09)] bg-white"
+                    style={{ boxShadow: '0 8px 32px rgba(15,31,61,0.12)' }}
+                  >
+                    {/* Balance header */}
+                    <div className="p-4 text-center border-b border-[rgba(15,31,61,0.09)]">
+                      <div className="text-3xl mb-1">🪙</div>
+                      <div className="text-2xl font-bold text-[#E8B84B]">{tokenBalance}</div>
+                      <div className="text-[11px] text-[#0F1F3D] opacity-50 mt-0.5">tokens remaining</div>
+                    </div>
+
+                    {/* Cost table */}
+                    <div className="p-3">
+                      <div className="text-[10px] font-bold text-[#0F1F3D] opacity-40 uppercase tracking-wider mb-2">
+                        Token Costs
+                      </div>
+                      {[
+                        { label: 'AI Chat Session', cost: 5 },
+                        { label: 'OCR Scan',        cost: 3 },
+                        { label: 'Bulk Import',     cost: 3 },
+                        { label: 'Excel Export',    cost: 2 },
+                      ].map(({ label, cost }) => (
+                        <div
+                          key={label}
+                          className="flex items-center justify-between py-1.5 border-b border-[rgba(15,31,61,0.05)] last:border-0"
+                        >
+                          <span className="text-xs text-[#0F1F3D] opacity-70">{label}</span>
+                          <span className="text-xs font-semibold text-[#E8B84B]">🪙 {cost}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Purchase CTA */}
+                    <div className="px-3 pb-3">
+                      <a
+                        href="https://munafaos.com/#pricing"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setShowTokenMenu(false)}
+                        className="block w-full text-center py-2 rounded-lg bg-[#E8B84B] text-[#0F1F3D] text-xs font-bold hover:bg-[#d4a43a] transition-colors"
+                      >
+                        Purchase More Tokens →
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         </div>

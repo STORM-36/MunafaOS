@@ -78,12 +78,6 @@ const AuthForm = () => {
     try {
       if (isLogin) {
         const loginResult = await signInWithEmailAndPassword(auth, email, password);
-        if (!loginResult.user.emailVerified) {
-          await signOut(auth);
-          toast.warning('Please verify your email first. Check your inbox (and spam folder) for the verification link.');
-          setLoading(false);
-          return;
-        }
         navigate('/dashboard', { replace: true });
       } else {
         if (password !== confirmPassword) {
@@ -95,10 +89,14 @@ const AuthForm = () => {
         const signupResult = await createUserWithEmailAndPassword(auth, email, password);
         await ensureUserProfile(signupResult.user);
         if (signupResult.user) {
-          await sendEmailVerification(signupResult.user);
+          const actionCodeSettings = {
+            url: 'https://app.munafaos.com',
+            handleCodeInApp: false,
+          };
+          await sendEmailVerification(signupResult.user, actionCodeSettings);
         }
         await signOut(auth);
-        toast.success('Account initialized! Please check your email (and spam folder) for the verification link before signing in.');
+        toast.success('Account created successfully! You can now sign in.');
         setIsLogin(true);
         setPassword('');
         setConfirmPassword('');

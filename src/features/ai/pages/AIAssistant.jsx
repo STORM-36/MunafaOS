@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAISession } from '../hooks/useAISession';
-import { useAuth } from '../../auth/context/AuthContext';
 import {
   Bot, Send, Plus, MessageSquare,
-  Coins, ChevronLeft, Loader2
+  ChevronLeft, Loader2
 } from 'lucide-react';
 
 const SUGGESTED_QUESTIONS = [
@@ -21,27 +20,14 @@ const AIAssistant = () => {
     tokenCharged,
   } = useAISession();
 
-  const { currentUser } = useAuth();
-
   const [input, setInput]               = useState('');
   const [sidebarOpen, setSidebarOpen]   = useState(true);
-  const [displayBalance, setDisplayBalance] = useState(
-    currentUser?.tokenBalance ?? 0
-  );
   const messagesEndRef    = useRef(null);
-  const prevTokenCharged  = useRef(false);
   const textareaRef       = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  useEffect(() => {
-    if (!prevTokenCharged.current && tokenCharged) {
-      setDisplayBalance(prev => Math.max(0, prev - 5));
-    }
-    prevTokenCharged.current = tokenCharged;
-  }, [tokenCharged]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -134,15 +120,6 @@ const AIAssistant = () => {
           ))}
         </div>
 
-        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Coins size={13} style={{ color: '#E8B84B' }} />
-            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>Token balance</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#E8B84B', marginLeft: 'auto' }}>
-              {displayBalance}
-            </span>
-          </div>
-        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -168,16 +145,6 @@ const AIAssistant = () => {
             <p style={{ margin: 0, fontSize: '11px', color: '#6D7690' }}>
               Powered by Gemini {'—'} knows your live business data
             </p>
-          </div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px',
-            background: '#FFF8E6', borderRadius: '20px',
-            border: '1px solid rgba(232,184,75,0.3)', flexShrink: 0,
-          }}>
-            <Coins size={12} style={{ color: '#E8B84B' }} />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#9A6F00' }}>
-              {displayBalance} tokens
-            </span>
           </div>
         </div>
 
@@ -222,16 +189,6 @@ const AIAssistant = () => {
                 <p style={{ margin: '0 0 10px', fontSize: '13px', color: '#6D7690', lineHeight: 1.5 }}>
                   Ask anything about your orders, profit, inventory, or strategy. I have access to your live data.
                 </p>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '5px',
-                  padding: '4px 12px', background: '#FFF8E6',
-                  borderRadius: '20px', border: '1px solid rgba(232,184,75,0.3)',
-                }}>
-                  <Coins size={11} style={{ color: '#E8B84B' }} />
-                  <span style={{ fontSize: '11px', color: '#9A6F00', fontWeight: 600 }}>
-                    5 tokens per session {'—'} unlimited messages
-                  </span>
-                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 {SUGGESTED_QUESTIONS.map(q => (
